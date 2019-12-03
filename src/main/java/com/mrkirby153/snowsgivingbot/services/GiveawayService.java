@@ -14,5 +14,5 @@ public interface GiveawayService {
 
     void deleteGiveaway(String messageId);
 
-    List<String> determineWinners(GiveawayEntity giveaway, int amount);
+    List<String> determineWinners(GiveawayEntity giveaway);
 }

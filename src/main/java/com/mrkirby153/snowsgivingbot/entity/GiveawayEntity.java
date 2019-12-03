@@ -44,4 +44,21 @@ public class GiveawayEntity {
 
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "giveaway")
     private List<GiveawayEntrantEntity> entrants;
+
+    private GiveawayState state = GiveawayState.RUNNING;
+
+
+    public enum GiveawayState {
+        RUNNING,
+        ENDED
+    }
+
+    @Override
+    public String toString() {
+        return "GiveawayEntity{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", channelId='" + channelId + '\'' +
+                '}';
+    }
 }
