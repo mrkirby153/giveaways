@@ -57,6 +57,6 @@ Commands for administering the bot or changing its internal settings.
 | `!ping` | Checks the bots ping | `!ping` |
 | `!update-message` | Updates the voted message | `!update-message` |
 | `!update-role` | Updates the voted users. This may take a bit | `!update-role` |
-| `!log-level <logger> [level]` | Gets or sets the log level of a logger | `!log-level com.mrkirby153.tgabot DEBUG` |
+| `!log-level <logger> [level]` | Gets or sets the log level of a logger | `!log-level com.mrkirby153.snowsgivingbot DEBUG` |
 | `!reaction-threshold [new]` | Gets or sets the reaction threshold | `!reaction-threshold 10` |
 | `!reaction-executors <new>` | Resizes the reaction removal thread pool | `!reaction-executors 10` |

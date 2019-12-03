@@ -1,4 +1,4 @@
-package com.mrkirby153.tgabot.services;
+package com.mrkirby153.snowsgivingbot.services;
 
 import net.dv8tion.jda.api.entities.Emote;
 import net.dv8tion.jda.api.entities.Guild;

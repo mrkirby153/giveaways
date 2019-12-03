@@ -1,4 +1,4 @@
-package com.mrkirby153.tgabot.config;
+package com.mrkirby153.snowsgivingbot.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;

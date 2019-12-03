@@ -1,4 +1,4 @@
-package com.mrkirby153.tgabot.config;
+package com.mrkirby153.snowsgivingbot.config;
 
 import com.mrkirby153.botcore.command.CommandExecutor;
 import com.mrkirby153.botcore.command.CommandExecutor.MentionMode;

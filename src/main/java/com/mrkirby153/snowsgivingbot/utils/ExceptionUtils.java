@@ -1,4 +1,4 @@
-package com.mrkirby153.tgabot.utils;
+package com.mrkirby153.snowsgivingbot.utils;
 
 import java.util.concurrent.CompletionException;
 

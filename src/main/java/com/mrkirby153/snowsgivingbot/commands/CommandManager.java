@@ -1,4 +1,4 @@
-package com.mrkirby153.tgabot.commands;
+package com.mrkirby153.snowsgivingbot.commands;
 
 import com.mrkirby153.botcore.command.CommandExecutor;
 import lombok.AllArgsConstructor;
@@ -20,11 +20,7 @@ public class CommandManager {
     private static List<Class<?>> commands = new ArrayList<>();
 
     static {
-        commands.add(AdminCommands.class);
-        commands.add(CategoryCommands.class);
-        commands.add(OptionCommands.class);
-        commands.add(ActionCommands.class);
-        commands.add(RoleCommands.class);
+
     }
 
     private final CommandExecutor executor;

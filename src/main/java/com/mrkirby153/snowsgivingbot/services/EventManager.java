@@ -1,4 +1,4 @@
-package com.mrkirby153.tgabot.services;
+package com.mrkirby153.snowsgivingbot.services;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

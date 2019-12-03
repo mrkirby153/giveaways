@@ -1,7 +1,7 @@
-package com.mrkirby153.tgabot.config;
+package com.mrkirby153.snowsgivingbot.config;
 
 import com.mrkirby153.botcore.event.EventWaiter;
-import com.mrkirby153.tgabot.services.EventService;
+import com.mrkirby153.snowsgivingbot.services.EventService;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.AccountType;
 import net.dv8tion.jda.api.JDA;
