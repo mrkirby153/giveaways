@@ -2,6 +2,7 @@ package com.mrkirby153.snowsgivingbot.services;
 
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity.GiveawayState;
+import com.mrkirby153.snowsgivingbot.entity.GiveawayEntrantEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.utils.GiveawayEmbedUtils;
@@ -10,6 +11,9 @@ import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.TextChannel;
+import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -28,12 +32,15 @@ import java.util.stream.Collectors;
 @Slf4j
 public class GiveawayManager implements GiveawayService {
 
+    private static final String TADA = "\uD83C\uDF89";
+
     private final JDA jda;
     private final EntrantRepository entrantRepository;
     private final GiveawayRepository giveawayRepository;
 
     private final Object giveawayLock = new Object();
 
+    private final Map<String, GiveawayEntity> entityCache = new HashMap<>();
 
     @Override
     public CompletableFuture<GiveawayEntity> createGiveaway(TextChannel channel, String name, int winners, String endsIn) {
@@ -44,6 +51,7 @@ public class GiveawayManager implements GiveawayService {
         entity.setEndsAt(new Timestamp(System.currentTimeMillis() + Time.INSTANCE.parse(endsIn)));
         channel.sendMessage(GiveawayEmbedUtils.makeInProgressEmbed(entity)).queue(m -> {
             entity.setMessageId(m.getId());
+            m.addReaction(TADA).queue();
             cf.complete(giveawayRepository.save(entity));
         });
         return cf;
@@ -125,7 +133,39 @@ public class GiveawayManager implements GiveawayService {
 
                 giveaway.setState(GiveawayState.ENDED);
                 giveawayRepository.save(giveaway);
+                entityCache.remove(giveaway.getMessageId());
             });
+        }
+    }
+
+    @EventListener
+    public void onReactionAdd(GuildMessageReactionAddEvent event) {
+        if (event.getUser().isBot() || event.getUser().isFake()) {
+            return; // Ignore bots and fake users
+        }
+        if (event.getReactionEmote().isEmoji() && event.getReactionEmote().getEmoji().equals(TADA)) {
+            GiveawayEntity cached = entityCache.get(event.getMessageId());
+            if (cached == null) {
+                log.debug("Cache miss. Looking up giveaway entity");
+                cached = giveawayRepository.findByMessageId(event.getMessageId())
+                        .orElseThrow(() -> new IllegalStateException("Could not find giveaway entity for message " +
+                                event.getMessageId()));
+                entityCache.put(event.getMessageId(), cached);
+            }
+            enterGiveaway(event.getUser(), cached);
+        }
+    }
+
+    private void enterGiveaway(User user, GiveawayEntity entity) {
+        if (entrantRepository.existsByGiveawayAndUserId(entity, user.getId())) {
+            log.debug("{} has already entered {}", user, entity);
+        } else {
+            if (entity.getState() != GiveawayState.RUNNING) {
+                log.debug("Not entering {} into {}. Has already ended", user, entity);
+            }
+            log.debug("Entering {} into {}", user, entity);
+            GiveawayEntrantEntity gee = new GiveawayEntrantEntity(entity, user.getId());
+            entrantRepository.save(gee);
         }
     }
 }

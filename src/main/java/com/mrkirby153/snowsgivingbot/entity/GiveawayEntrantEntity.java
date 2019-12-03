@@ -22,5 +22,6 @@ public class GiveawayEntrantEntity {
     private GiveawayEntity giveaway;
 
     @Column(name = "user_id")
+    @NonNull
     private String userId;
 }
