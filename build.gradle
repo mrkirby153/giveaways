@@ -1,0 +1,73 @@
+plugins {
+    id 'org.springframework.boot' version '2.2.0.RELEASE'
+    id 'io.spring.dependency-management' version '1.0.8.RELEASE'
+    id 'java'
+    id "org.flywaydb.flyway" version "6.0.6"
+    id "io.freefair.lombok" version "4.1.3"
+}
+
+group = 'com.mrkirby153'
+version = '1.0.0-SNAPSHOT'
+sourceCompatibility = '1.8'
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+    jcenter()
+    maven {
+        url = "https://repo.mrkirby153.com/repository/maven-public/"
+    }
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.flywaydb:flyway-core'
+    compileOnly 'org.projectlombok:lombok'
+    runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'mysql:mysql-connector-java'
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+    annotationProcessor 'org.projectlombok:lombok'
+    testImplementation('org.springframework.boot:spring-boot-starter-test') {
+        exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
+    }
+
+    compile 'net.dv8tion:JDA:4.0.0_39'
+    compile 'com.mrkirby153:bot-core:2.0-SNAPSHOT'
+    compile 'me.mrkirby153:KirbyUtils-Common:3.2-SNAPSHOT'
+
+    testCompile 'org.junit.jupiter:junit-jupiter-api:5.5.2'
+    testCompile 'org.junit.jupiter:junit-jupiter-engine:5.5.2'
+    testCompile 'org.mockito:mockito-core:3.1.0'
+    testCompile 'org.awaitility:awaitility:4.0.1'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+// Load up application properties so flyway works
+ext.defaultProps = new Properties()
+file("src/main/resources/application.properties").withInputStream { defaultProps.load(it) }
+
+ext.props = new Properties()
+file("config/application.properties").withInputStream { props.load(it) }
+
+def getApplicationProperty(property, defaultValue = null) {
+    return props.getProperty(property, defaultProps.getProperty(property, defaultValue))
+}
+
+flyway {
+    url = getApplicationProperty('spring.datasource.url')
+    user = getApplicationProperty('spring.datasource.username')
+    password = getApplicationProperty('spring.datasource.password')
+}
+
+task cleanAll {
+    dependsOn clean, flywayClean
+}
