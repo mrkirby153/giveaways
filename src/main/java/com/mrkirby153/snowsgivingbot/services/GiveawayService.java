@@ -3,7 +3,6 @@ package com.mrkirby153.snowsgivingbot.services;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import net.dv8tion.jda.api.entities.TextChannel;
 
-import java.sql.Timestamp;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -15,4 +14,8 @@ public interface GiveawayService {
     void deleteGiveaway(String messageId);
 
     List<String> determineWinners(GiveawayEntity giveaway);
+
+    void endGiveaway(String messageId);
+
+    void reroll(String mid);
 }

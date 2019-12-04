@@ -33,9 +33,14 @@ public class GiveawayEmbedUtils {
                 break;
             case ENDED:
                 eb.setColor(Color.RED);
-                eb.setDescription(
-                    "Giveaway has ended!\n\n**Winners:** " + Arrays.stream(entity.getFinalWinners().split(","))
-                        .map(a -> "<@!" + a.trim() + ">").collect(Collectors.joining(" ")));
+                if (entity.getFinalWinners().isEmpty()) {
+                    eb.setDescription("Giveaway has ended!\n\nCould not determine a winner :(");
+                } else {
+                    String winners = Arrays.stream(entity.getFinalWinners().split(","))
+                        .map(a -> "<@!" + a.trim() + ">").collect(Collectors.joining(" "));
+                    eb.setDescription(
+                        "Giveaway has ended!\n\n**Winners:** " + winners);
+                }
                 eb.setFooter(entity.getWinners() + " winners | Ended at");
         }
 

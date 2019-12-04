@@ -86,7 +86,6 @@ public class GiveawayManager implements GiveawayService {
             } else {
                 m.addReaction(emoji).queue();
             }
-            m.addReaction(TADA).queue();
             cf.complete(giveawayRepository.save(entity));
         });
         return cf;
@@ -114,6 +113,24 @@ public class GiveawayManager implements GiveawayService {
             winList.add(allIds.remove((int) (Math.random() * allIds.size())));
         }
         return winList;
+    }
+
+    @Override
+    public void endGiveaway(String messageId) {
+        GiveawayEntity ge = giveawayRepository.findByMessageId(messageId)
+            .orElseThrow(() -> new IllegalArgumentException("Giveaway not found"));
+        ge.setEndsAt(new Timestamp(System.currentTimeMillis()));
+        giveawayRepository.save(ge);
+    }
+
+    @Override
+    public void reroll(String mid) {
+        GiveawayEntity ge = giveawayRepository.findByMessageId(mid)
+            .orElseThrow(() -> new IllegalArgumentException("Giveaway not found"));
+        if (ge.getState() != GiveawayState.ENDED) {
+            throw new IllegalArgumentException("Cannot reroll an in progress giveaway");
+        }
+        endGiveaway(ge);
     }
 
     private void updateGiveaways(Timestamp before) {
@@ -155,14 +172,21 @@ public class GiveawayManager implements GiveawayService {
             .findAllByEndsAtBeforeAndStateIs(
                 new Timestamp(Instant.now().plusSeconds(1).plusMillis(500).toEpochMilli()),
                 GiveawayState.RUNNING);
-        endingGiveaways.forEach(giveaway -> {
-            log.info("Ending giveaway {}", giveaway);
-            List<String> winners = determineWinners(giveaway);
-            TextChannel channel = jda.getTextChannelById(giveaway.getChannelId());
+        endingGiveaways.forEach(this::endGiveaway);
+    }
 
-            String winnersAsMention = winners.stream().map(id -> "<@!" + id + ">")
-                .collect(Collectors.joining(" "));
-            if (channel != null) {
+    private void endGiveaway(GiveawayEntity giveaway) {
+        log.info("Ending giveaway {}", giveaway);
+        List<String> winners = determineWinners(giveaway);
+        TextChannel channel = jda.getTextChannelById(giveaway.getChannelId());
+
+        String winnersAsMention = winners.stream().map(id -> "<@!" + id + ">")
+            .collect(Collectors.joining(" "));
+        if (channel != null) {
+            if (winners.size() == 0) {
+                // Could not determine a winner
+                channel.sendMessage("\uD83D\uDEA8 Could not determine a winner!").queue();
+            } else {
                 channel.sendMessage(
                     ":tada: Congratulations " + winnersAsMention + " you won **" + giveaway
                         .getName() + "**").queue();
@@ -171,12 +195,12 @@ public class GiveawayManager implements GiveawayService {
                         .queue();
                 });
             }
+        }
 
-            giveaway.setState(GiveawayState.ENDED);
-            giveaway.setFinalWinners(String.join(", ", winners));
-            giveawayRepository.save(giveaway);
-            entityCache.remove(giveaway.getMessageId());
-        });
+        giveaway.setState(GiveawayState.ENDED);
+        giveaway.setFinalWinners(String.join(", ", winners));
+        giveawayRepository.save(giveaway);
+        entityCache.remove(giveaway.getMessageId());
     }
 
 
