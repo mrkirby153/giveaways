@@ -7,6 +7,7 @@ CREATE TABLE `giveaways`(
     `created_at` TIMESTAMP NOT NULL,
     `ends_at` TIMESTAMP NOT NULL,
     `state` INT NOT NULL,
+    `final_winners` VARCHAR(2000) DEFAULT NULL,
     PRIMARY KEY (id),
     INDEX(message)
 );

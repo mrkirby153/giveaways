@@ -20,7 +20,7 @@ public class CommandManager {
     private static List<Class<?>> commands = new ArrayList<>();
 
     static {
-
+        commands.add(GiveawayCommands.class);
     }
 
     private final CommandExecutor executor;

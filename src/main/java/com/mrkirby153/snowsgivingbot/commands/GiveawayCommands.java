@@ -13,7 +13,7 @@ public class GiveawayCommands {
 
     private GiveawayService giveawayService;
 
-    @Command(name = "start", arguments = {"<time:string>", "<winners:integer>", "<name:string...>"})
+    @Command(name = "start", arguments = {"<time:string>", "<winners:int>", "<name:string...>"})
     public void createGiveaway(Context context, CommandContext cmdContext) {
         String time = cmdContext.getNotNull("time");
         int winners = cmdContext.getNotNull("winners");

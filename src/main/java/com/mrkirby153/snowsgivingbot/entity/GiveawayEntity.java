@@ -1,12 +1,23 @@
 package com.mrkirby153.snowsgivingbot.entity;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import javax.persistence.*;
 import java.sql.Timestamp;
 import java.util.List;
+import javax.persistence.CascadeType;
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.EntityListeners;
+import javax.persistence.GeneratedValue;
+import javax.persistence.Id;
+import javax.persistence.OneToMany;
+import javax.persistence.Table;
 
 @Entity
 @Table(name = "giveaways")
@@ -25,11 +36,11 @@ public class GiveawayEntity {
     private String name;
 
     @NonNull
-    @Column(name = "channel_id")
+    @Column(name = "channel")
     private String channelId;
 
     @NonNull
-    @Column(name = "message_id")
+    @Column(name = "message")
     private String messageId;
 
     private int winners;
@@ -46,6 +57,9 @@ public class GiveawayEntity {
     private List<GiveawayEntrantEntity> entrants;
 
     private GiveawayState state = GiveawayState.RUNNING;
+
+    @Column(name = "final_winners")
+    private String finalWinners;
 
 
     public enum GiveawayState {
