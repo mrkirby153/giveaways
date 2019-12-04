@@ -22,12 +22,14 @@ public class CommandConfig {
     private static final Pattern ID_PATTERN = Pattern.compile("\\d{17,18}");
     private String prefix;
     private String admins;
+    private String owner;
 
 
     public CommandConfig(@Value("${bot.prefix:!}") String prefix,
-        @Value("${bot.admins:}") String admins) {
+        @Value("${bot.admins:}") String admins, @Value("${bot.owner:}") String owner) {
         this.prefix = prefix;
         this.admins = admins;
+        this.owner = owner;
     }
 
     @Bean
@@ -36,6 +38,9 @@ public class CommandConfig {
         ex.setAlertNoClearance(false);
         ex.setAlertUnknownCommand(false);
         ex.setClearanceResolver(member -> {
+            if (member.getUser().getId().equalsIgnoreCase(owner)) {
+                return 101;
+            }
             String[] parts = this.admins.split(",");
             List<String> roles = Arrays.stream(parts).filter(s -> s.startsWith("r:"))
                 .map(s -> s.substring(2)).collect(Collectors.toList());

@@ -13,4 +13,6 @@ public interface GiveawayRepository extends CrudRepository<GiveawayEntity, Long>
     Optional<GiveawayEntity> findByMessageId(String messageId);
 
     List<GiveawayEntity> findAllByEndsAtBeforeAndStateIs(Timestamp timestamp, GiveawayState state);
+
+    List<GiveawayEntity> findAllByState(GiveawayState state);
 }

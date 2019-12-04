@@ -15,6 +15,7 @@ import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -137,15 +138,7 @@ public class GiveawayManager implements GiveawayService {
         synchronized (giveawayLock) {
             List<GiveawayEntity> giveaways = giveawayRepository
                 .findAllByEndsAtBeforeAndStateIs(before, GiveawayState.RUNNING);
-            giveaways.forEach(giveaway -> {
-                log.debug("Updating {}", giveaway);
-                TextChannel channel = jda.getTextChannelById(giveaway.getChannelId());
-                if (channel != null) {
-                    channel.retrieveMessageById(giveaway.getMessageId()).queue(msg -> {
-                        msg.editMessage(GiveawayEmbedUtils.renderMessage(giveaway)).queue();
-                    });
-                }
-            });
+            updateMultipleGiveaways(giveaways);
         }
     }
 
@@ -165,6 +158,26 @@ public class GiveawayManager implements GiveawayService {
             // Update giveaways ending in 5 seconds every second
             updateGiveaways(new Timestamp(now.plusSeconds(5).toEpochMilli()));
         }
+    }
+
+    @Scheduled(fixedDelay = 120000L) // 2 minutes
+    public void updateAllGiveaways() {
+        log.debug("Updating all giveaways");
+        List<GiveawayEntity> activeGiveaways = giveawayRepository
+            .findAllByState(GiveawayState.RUNNING);
+        updateMultipleGiveaways(activeGiveaways);
+    }
+
+    private void updateMultipleGiveaways(List<GiveawayEntity> activeGiveaways) {
+        activeGiveaways.forEach(g -> {
+            log.debug("Updating {}", g);
+            TextChannel c = jda.getTextChannelById(g.getChannelId());
+            if (c != null) {
+                c.retrieveMessageById(g.getMessageId()).queue(m -> {
+                    m.editMessage(GiveawayEmbedUtils.renderMessage(g)).queue();
+                });
+            }
+        });
     }
 
     private void updateEndedGiveaways() {
@@ -216,6 +229,7 @@ public class GiveawayManager implements GiveawayService {
     }
 
     @EventListener
+    @Async
     public void onReactionAdd(GuildMessageReactionAddEvent event) {
         if (event.getUser().isBot() || event.getUser().isFake()) {
             return; // Ignore bots and fake users

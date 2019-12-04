@@ -4,11 +4,17 @@ import com.mrkirby153.botcore.command.Command;
 import com.mrkirby153.botcore.command.CommandException;
 import com.mrkirby153.botcore.command.Context;
 import com.mrkirby153.botcore.command.args.CommandContext;
+import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
+import com.mrkirby153.snowsgivingbot.entity.GiveawayEntrantEntity;
+import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
+import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -19,7 +25,9 @@ public class GiveawayCommands {
 
     private final Pattern winnerPattern = Pattern.compile("^(\\d)+w$");
 
-    private GiveawayService giveawayService;
+    private final GiveawayService giveawayService;
+    private final EntrantRepository er;
+    private final GiveawayRepository gr;
 
     @Command(name = "start", arguments = {"<time:string>", "<prize:string...>"}, clearance = 100)
     public void createGiveaway(Context context, CommandContext cmdContext) {
@@ -61,6 +69,23 @@ public class GiveawayCommands {
         } catch (IllegalArgumentException | IllegalStateException e) {
             throw new CommandException(e.getMessage());
         }
+    }
+
+    @Command(name = "fakeusers", arguments = {"<id:int>", "<users:int>"}, clearance = 100)
+    public void addFakeUsers(Context context, CommandContext commandContext) {
+        int id = commandContext.getNotNull("id");
+        GiveawayEntity ge = gr.findById(Integer.valueOf(id).longValue())
+            .orElseThrow(() -> new CommandException("KABOOM. giveaway not found"));
+        int users = commandContext.getNotNull("users");
+        context.getChannel().sendMessage("Adding " + users + " fake users to giveaway " + id)
+            .queue();
+        List<GiveawayEntrantEntity> entries = new ArrayList<>();
+        for (int i = 0; i < users; i++) {
+            GiveawayEntrantEntity gee = new GiveawayEntrantEntity(ge, "" + i);
+            entries.add(gee);
+        }
+        er.saveAll(entries);
+        context.getChannel().sendMessage("Done").queue();
     }
 
 }
