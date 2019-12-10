@@ -12,6 +12,7 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.MessageReaction.ReactionEmote;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.events.message.MessageDeleteEvent;
 import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
@@ -29,6 +30,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import javax.transaction.Transactional;
 
 @Service
 @Slf4j
@@ -250,6 +252,13 @@ public class GiveawayManager implements GiveawayService {
             }
             enterGiveaway(event.getUser(), cached);
         }
+    }
+
+    @EventListener
+    @Async
+    @Transactional
+    public void onMessageDelete(MessageDeleteEvent event) {
+        giveawayRepository.deleteAllByMessageId(event.getMessageId());
     }
 
     private void enterGiveaway(User user, GiveawayEntity entity) {

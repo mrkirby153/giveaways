@@ -71,7 +71,7 @@ public class GiveawayCommands {
         }
     }
 
-    @Command(name = "fakeusers", arguments = {"<id:int>", "<users:int>"}, clearance = 100)
+    @Command(name = "fakeusers", arguments = {"<id:int>", "<users:int>"}, clearance = 101)
     public void addFakeUsers(Context context, CommandContext commandContext) {
         int id = commandContext.getNotNull("id");
         GiveawayEntity ge = gr.findById(Integer.valueOf(id).longValue())

@@ -14,6 +14,8 @@ import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EntityListeners;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
 import javax.persistence.OneToMany;
@@ -56,6 +58,7 @@ public class GiveawayEntity {
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "giveaway")
     private List<GiveawayEntrantEntity> entrants;
 
+    @Enumerated(value = EnumType.ORDINAL)
     private GiveawayState state = GiveawayState.RUNNING;
 
     @Column(name = "final_winners")

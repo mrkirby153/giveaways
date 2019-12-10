@@ -6,13 +6,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 
 import java.util.List;
-import java.util.Optional;
 
 public interface EntrantRepository extends CrudRepository<GiveawayEntrantEntity, Long> {
 
     List<GiveawayEntrantEntity> findAllByGiveaway(GiveawayEntity entity);
 
-    @Query("SELECT DISTINCT e.userId FROM GiveawayEntrantEntity e WHERE giveaway = (:entity)")
+    @Query("SELECT DISTINCT e.userId FROM GiveawayEntrantEntity e WHERE e.giveaway = (:entity)")
     List<String> findAllIdsFromGiveaway(GiveawayEntity entity);
 
     boolean existsByGiveawayAndUserId(GiveawayEntity giveaway, String userId);
