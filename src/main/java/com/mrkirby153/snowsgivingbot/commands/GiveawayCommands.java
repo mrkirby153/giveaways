@@ -75,11 +75,16 @@ public class GiveawayCommands {
         }
     }
 
-    @Command(name = "reroll", arguments = {"<mid:snowflake>"}, clearance = 100)
+    @Command(name = "reroll", arguments = {"<mid:snowflake>", "[users:string...]"}, clearance = 100)
     public void reroll(Context context, CommandContext cmdContext) {
-        context.getChannel().sendMessage("Rerolling giveaway, hold tight!").queue();
+        context.getChannel().sendMessage("Rerolling giveaway...").queue();
         try {
-            giveawayService.reroll(cmdContext.getNotNull("mid"));
+            String[] users = null;
+            String toReroll = cmdContext.get("users");
+            if (toReroll != null) {
+                users = toReroll.split(",");
+            }
+            giveawayService.reroll(cmdContext.getNotNull("mid"), users);
         } catch (IllegalArgumentException | IllegalStateException e) {
             throw new CommandException(e.getMessage());
         }

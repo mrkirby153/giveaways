@@ -17,5 +17,5 @@ public interface GiveawayService {
 
     void endGiveaway(String messageId);
 
-    void reroll(String mid);
+    void reroll(String mid, String[] users);
 }

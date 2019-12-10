@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -109,11 +110,13 @@ public class GiveawayManager implements GiveawayService {
     @Override
     public List<String> determineWinners(GiveawayEntity giveaway) {
         List<String> winList = new ArrayList<>();
+        // Add the already existing winners to the giveaway
+        if (giveaway.getFinalWinners() != null) {
+            Arrays.stream(giveaway.getFinalWinners().split(",")).map(String::trim)
+                .forEach(winList::add);
+        }
         List<String> allIds = entrantRepository.findAllIdsFromGiveaway(giveaway);
-        for (int i = 0; i < giveaway.getWinners(); i++) {
-            if (allIds.isEmpty()) {
-                break; // Break if we've selected everyone
-            }
+        while (winList.size() < giveaway.getWinners() && !allIds.isEmpty()) {
             winList.add(allIds.remove((int) (Math.random() * allIds.size())));
         }
         return winList;
@@ -128,13 +131,26 @@ public class GiveawayManager implements GiveawayService {
     }
 
     @Override
-    public void reroll(String mid) {
+    public void reroll(String mid, String[] users) {
         GiveawayEntity ge = giveawayRepository.findByMessageId(mid)
             .orElseThrow(() -> new IllegalArgumentException("Giveaway not found"));
         if (ge.getState() != GiveawayState.ENDED) {
             throw new IllegalArgumentException("Cannot reroll an in progress giveaway");
         }
-        endGiveaway(ge);
+        List<String> toRemove = Arrays.stream(ge.getFinalWinners().split(",")).map(String::trim)
+            .collect(
+                Collectors.toList());
+        if (users != null) {
+            log.debug("Rerolling with existing users");
+            for (String s : users) {
+                toRemove.remove(s.trim());
+            }
+            ge.setFinalWinners(String.join(",", toRemove));
+        } else {
+            log.debug("Rerolling with new users");
+            ge.setFinalWinners(null);
+        }
+        endGiveaway(ge, true);
     }
 
     private void updateGiveaways(Timestamp before) {
@@ -192,6 +208,9 @@ public class GiveawayManager implements GiveawayService {
     }
 
     private void endGiveaway(GiveawayEntity giveaway) {
+        endGiveaway(giveaway, false);
+    }
+    private void endGiveaway(GiveawayEntity giveaway, boolean reroll) {
         log.info("Ending giveaway {}", giveaway);
         List<String> winners = determineWinners(giveaway);
         TextChannel channel = jda.getTextChannelById(giveaway.getChannelId());
@@ -208,8 +227,10 @@ public class GiveawayManager implements GiveawayService {
                         ":tada: Congratulations " + winnersAsMention + " you won **" + giveaway
                             .getName() + "**").queue();
                 } else {
-                    channel.sendMessage(":tada: **" + giveaway.getName()
-                        + "** has ended. Stay tuned for the winners!").queue();
+                    if(!reroll) {
+                        channel.sendMessage(":tada: **" + giveaway.getName()
+                            + "** has ended. Stay tuned for the winners!").queue();
+                    }
                 }
                 channel.retrieveMessageById(giveaway.getMessageId()).queue(msg -> {
                     msg.editMessage(GiveawayEmbedUtils.renderMessage(giveaway))
