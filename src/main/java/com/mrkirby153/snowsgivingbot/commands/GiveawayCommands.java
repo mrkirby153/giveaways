@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
 @Slf4j
 public class GiveawayCommands {
 
-    private final Pattern winnerPattern = Pattern.compile("^(\\d)+w$");
+    private final Pattern winnerPattern = Pattern.compile("^(\\d+)w$");
 
     private final GiveawayService giveawayService;
     private final EntrantRepository er;
@@ -40,9 +40,9 @@ public class GiveawayCommands {
             Matcher matcher = winnerPattern.matcher(winnersQuestion);
             if (matcher.find()) {
                 winners = Integer.parseInt(matcher.group(1));
+                prizeStr = prizeStr.replace(winnersQuestion, "").trim();
             }
             log.debug("Winners are now {}", winners);
-            prizeStr = prizeStr.replace(winnersQuestion, "").trim();
         }
         try {
             giveawayService.createGiveaway(context.getTextChannel(), prizeStr, winners, time);
