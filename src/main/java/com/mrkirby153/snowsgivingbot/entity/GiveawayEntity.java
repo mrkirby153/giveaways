@@ -47,6 +47,10 @@ public class GiveawayEntity {
 
     private int winners;
 
+    @NonNull
+    @Column(name = "secret")
+    private boolean secret = false;
+
     @CreatedDate
     @Column(name = "created_at")
     private Timestamp createdAt;

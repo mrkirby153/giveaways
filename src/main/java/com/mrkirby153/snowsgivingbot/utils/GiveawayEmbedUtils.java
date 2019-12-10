@@ -36,10 +36,14 @@ public class GiveawayEmbedUtils {
                 if (entity.getFinalWinners().isEmpty()) {
                     eb.setDescription("Giveaway has ended!\n\nCould not determine a winner :(");
                 } else {
-                    String winners = Arrays.stream(entity.getFinalWinners().split(","))
-                        .map(a -> "<@!" + a.trim() + ">").collect(Collectors.joining(" "));
-                    eb.setDescription(
-                        "Giveaway has ended!\n\n**Winners:** " + winners);
+                    if (!entity.isSecret()) {
+                        String winners = Arrays.stream(entity.getFinalWinners().split(","))
+                            .map(a -> "<@!" + a.trim() + ">").collect(Collectors.joining(" "));
+                        eb.setDescription(
+                            "Giveaway has ended!\n\n**Winners:** " + winners);
+                    } else {
+                        eb.setDescription("Giveaway has ended!\n\nWinners will be announced soon!");
+                    }
                 }
                 eb.setFooter(entity.getWinners() + " winners | Ended at");
         }

@@ -64,6 +64,17 @@ public class CommandConfig {
             }
             return m.group(0);
         });
+        ex.addContextResolver("boolean", options -> {
+            String next = options.pop();
+            if (next.equalsIgnoreCase("true")) {
+                return true;
+            } else if (next.equalsIgnoreCase("false")) {
+                return false;
+            } else {
+                throw new ArgumentParseException(
+                    "`" + next + "` is not a boolean. Must be true or false");
+            }
+        });
         return ex;
     }
 }

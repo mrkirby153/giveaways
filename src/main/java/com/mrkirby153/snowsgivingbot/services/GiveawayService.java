@@ -9,7 +9,7 @@ import java.util.concurrent.CompletableFuture;
 public interface GiveawayService {
 
 
-    CompletableFuture<GiveawayEntity> createGiveaway(TextChannel channel, String name, int winners, String endsIn);
+    CompletableFuture<GiveawayEntity> createGiveaway(TextChannel channel, String name, int winners, String endsIn, boolean secret);
 
     void deleteGiveaway(String messageId);
 

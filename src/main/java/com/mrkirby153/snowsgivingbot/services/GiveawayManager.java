@@ -75,13 +75,14 @@ public class GiveawayManager implements GiveawayService {
 
     @Override
     public CompletableFuture<GiveawayEntity> createGiveaway(TextChannel channel, String name,
-        int winners, String endsIn) {
+        int winners, String endsIn, boolean secret) {
         CompletableFuture<GiveawayEntity> cf = new CompletableFuture<>();
         GiveawayEntity entity = new GiveawayEntity();
         entity.setName(name);
         entity.setWinners(winners);
         entity.setEndsAt(new Timestamp(System.currentTimeMillis() + Time.INSTANCE.parse(endsIn)));
         entity.setChannelId(channel.getId());
+        entity.setSecret(secret);
         channel.sendMessage(GiveawayEmbedUtils.renderMessage(entity)).queue(m -> {
             entity.setMessageId(m.getId());
             if (custom) {
@@ -202,9 +203,14 @@ public class GiveawayManager implements GiveawayService {
                 // Could not determine a winner
                 channel.sendMessage("\uD83D\uDEA8 Could not determine a winner!").queue();
             } else {
-                channel.sendMessage(
-                    ":tada: Congratulations " + winnersAsMention + " you won **" + giveaway
-                        .getName() + "**").queue();
+                if (!giveaway.isSecret()) {
+                    channel.sendMessage(
+                        ":tada: Congratulations " + winnersAsMention + " you won **" + giveaway
+                            .getName() + "**").queue();
+                } else {
+                    channel.sendMessage(":tada: **" + giveaway.getName()
+                        + "** has ended. Stay tuned for the winners!").queue();
+                }
                 channel.retrieveMessageById(giveaway.getMessageId()).queue(msg -> {
                     msg.editMessage(GiveawayEmbedUtils.renderMessage(giveaway))
                         .queue();
