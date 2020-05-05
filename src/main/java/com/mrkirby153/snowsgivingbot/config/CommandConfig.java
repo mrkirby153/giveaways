@@ -3,33 +3,34 @@ package com.mrkirby153.snowsgivingbot.config;
 import com.mrkirby153.botcore.command.CommandExecutor;
 import com.mrkirby153.botcore.command.CommandExecutor.MentionMode;
 import com.mrkirby153.botcore.command.args.ArgumentParseException;
+import com.mrkirby153.snowsgivingbot.services.PermissionService;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.JDA;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 @Configuration
 @Slf4j
 public class CommandConfig {
 
     private static final Pattern ID_PATTERN = Pattern.compile("\\d{17,18}");
+    private final PermissionService permissionManager;
     private String prefix;
     private String admins;
     private String owner;
 
 
     public CommandConfig(@Value("${bot.prefix:!}") String prefix,
-        @Value("${bot.admins:}") String admins, @Value("${bot.owner:}") String owner) {
+        @Value("${bot.admins:}") String admins, @Value("${bot.owner:}") String owner,
+        PermissionService permissionManager) {
         this.prefix = prefix;
         this.admins = admins;
         this.owner = owner;
+        this.permissionManager = permissionManager;
     }
 
     @Bean
@@ -41,20 +42,11 @@ public class CommandConfig {
             if (member.getUser().getId().equalsIgnoreCase(owner)) {
                 return 101;
             }
-            String[] parts = this.admins.split(",");
-            List<String> roles = Arrays.stream(parts).filter(s -> s.startsWith("r:"))
-                .map(s -> s.substring(2)).collect(Collectors.toList());
-            List<String> users = Arrays.stream(parts).filter(s -> s.startsWith("u:"))
-                .map(s -> s.substring(2)).collect(
-                    Collectors.toList());
-
-            if (users.contains(member.getId())) {
+            if (permissionManager.hasPermission(member)) {
                 return 100;
+            } else {
+                return 0;
             }
-            if (member.getRoles().stream().anyMatch(role -> roles.contains(role.getId()))) {
-                return 100;
-            }
-            return 0;
         });
         ex.addContextResolver("idormention", options -> {
             String next = options.pop();

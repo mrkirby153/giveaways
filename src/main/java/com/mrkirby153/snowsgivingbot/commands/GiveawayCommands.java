@@ -7,16 +7,20 @@ import com.mrkirby153.botcore.command.args.CommandContext;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntrantEntity;
+import com.mrkirby153.snowsgivingbot.entity.GiveawayRoleEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService;
+import com.mrkirby153.snowsgivingbot.services.PermissionService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.dv8tion.jda.api.entities.Role;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -31,6 +35,7 @@ public class GiveawayCommands {
     private final GiveawayService giveawayService;
     private final EntrantRepository er;
     private final GiveawayRepository gr;
+    private final PermissionService ps;
 
     @Command(name = "start", arguments = {"<time:string>", "<prize:string...>"}, clearance = 100)
     public void createGiveaway(Context context, CommandContext cmdContext) {
@@ -136,5 +141,43 @@ public class GiveawayCommands {
         context.getChannel()
             .sendMessage("The winners for **" + entity.getName() + "** are\n" + winnerString)
             .queue();
+    }
+
+    @Command(name = "add", arguments = {"<role:snowflake>"}, clearance = 100, parent = "grole")
+    public void addRole(Context context, CommandContext commandContext) {
+        String roleId = commandContext.getNotNull("role");
+        Role role = context.getGuild().getRoleById(roleId);
+        if (role == null) {
+            throw new CommandException(
+                "The role with the id `" + roleId + "` was not found");
+        }
+        ps.addGiveawayRole(role);
+        context.getChannel().sendMessage(
+            "Added " + role.getName() + " as a giveaway role. They can now manage giveaways")
+            .queue();
+    }
+
+    @Command(name = "remove", arguments = {"<role:snowflake>"}, clearance = 100, parent = "grole")
+    public void removeRole(Context context, CommandContext commandContext) {
+        String roleId = commandContext.getNotNull("role");
+        Role role = context.getGuild().getRoleById(roleId);
+        if (role == null) {
+            throw new CommandException(
+                "The role with the id `" + roleId + "` was not found");
+        }
+        ps.removeGiveawayRole(role);
+        context.getChannel().sendMessage("Removed " + role.getName() + " as a giveaway role")
+            .queue();
+    }
+
+    @Command(name = "list", clearance = 100, parent = "grole")
+    public void listRoles(Context context, CommandContext commandContext) {
+        List<GiveawayRoleEntity> roles = ps.getGiveawayRoles(context.getGuild());
+        StringBuilder sb = new StringBuilder();
+        sb.append("The following roles are configured on this server: ");
+        sb.append(
+            roles.stream().map(GiveawayRoleEntity::getRoleId).map(context.getJDA()::getRoleById)
+                .filter(Objects::nonNull).map(Role::getName).collect(Collectors.joining(", ")));
+        context.getChannel().sendMessage(sb).queue();
     }
 }

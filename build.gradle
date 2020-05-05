@@ -19,6 +19,7 @@ configurations {
 repositories {
     mavenCentral()
     jcenter()
+    mavenLocal()
     maven {
         url = "https://repo.mrkirby153.com/repository/maven-public/"
     }
@@ -37,9 +38,10 @@ dependencies {
         exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
     }
 
-    compile 'net.dv8tion:JDA:4.0.0_39'
-    compile 'com.mrkirby153:bot-core:2.0-SNAPSHOT'
-    compile 'me.mrkirby153:KirbyUtils-Common:3.2-SNAPSHOT'
+    implementation 'net.dv8tion:JDA:4.1.1_143'
+    implementation 'com.mrkirby153:bot-core:2.1-SNAPSHOT'
+    implementation 'me.mrkirby153:KirbyUtils-Common:3.2-SNAPSHOT'
+    implementation 'com.google.guava:guava:29.0-jre'
 
     testCompile 'org.junit.jupiter:junit-jupiter-api:5.5.2'
     testCompile 'org.junit.jupiter:junit-jupiter-engine:5.5.2'
