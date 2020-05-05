@@ -38,6 +38,10 @@ public class GiveawayEntity {
     private String name;
 
     @NonNull
+    @Column(name = "guild_id")
+    private String guildId;
+
+    @NonNull
     @Column(name = "channel")
     private String channelId;
 

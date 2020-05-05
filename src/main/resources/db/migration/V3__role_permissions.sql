@@ -4,4 +4,6 @@ CREATE TABLE `giveaway_roles` (
     `guild` VARCHAR(255) NOT NULL,
     `role_id` VARCHAR(255) NOT NULL,
     PRIMARY KEY (id)
-)
+);
+
+ALTER TABLE `giveaways` ADD `guild_id` VARCHAR(255) NOT NULL AFTER `name`;

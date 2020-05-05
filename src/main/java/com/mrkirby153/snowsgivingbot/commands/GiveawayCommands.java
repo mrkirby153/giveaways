@@ -15,6 +15,7 @@ import com.mrkirby153.snowsgivingbot.services.PermissionService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.entities.TextChannel;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -179,5 +180,29 @@ public class GiveawayCommands {
             roles.stream().map(GiveawayRoleEntity::getRoleId).map(context.getJDA()::getRoleById)
                 .filter(Objects::nonNull).map(Role::getName).collect(Collectors.joining(", ")));
         context.getChannel().sendMessage(sb).queue();
+    }
+
+    @Command(name = "gexport", clearance = 100)
+    public void export(Context context, CommandContext commandContext) {
+        List<GiveawayEntity> giveaways = giveawayService.getAllGiveaways(context.getGuild());
+        if (giveaways.size() == 0) {
+            throw new CommandException("No giveaways were found on the guild!");
+        }
+
+        StringBuilder csv = new StringBuilder();
+        csv.append("id,name,channel,winners,final_winners\n");
+        giveaways.forEach(giveawayEntity -> {
+            csv.append(giveawayEntity.getId()).append(",").append("\"")
+                .append(giveawayEntity.getName()).append("\",");
+            TextChannel c = context.getJDA().getTextChannelById(giveawayEntity.getChannelId());
+            if (c != null) {
+                csv.append("\"").append(c.getName()).append(" (").append(c.getId()).append(")\",");
+            } else {
+                csv.append(giveawayEntity.getChannelId()).append(",");
+            }
+            csv.append(giveawayEntity.getWinners()).append(",").append("\"")
+                .append(giveawayEntity.getFinalWinners()).append("\"\n");
+        });
+        context.getChannel().sendFile(csv.toString().getBytes(), "giveaways.csv").queue();
     }
 }

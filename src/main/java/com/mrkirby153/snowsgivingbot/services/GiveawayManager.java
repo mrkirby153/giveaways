@@ -9,6 +9,7 @@ import com.mrkirby153.snowsgivingbot.utils.GiveawayEmbedUtils;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
 import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.MessageReaction.ReactionEmote;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.entities.User;
@@ -84,6 +85,7 @@ public class GiveawayManager implements GiveawayService {
         entity.setEndsAt(new Timestamp(System.currentTimeMillis() + Time.INSTANCE.parse(endsIn)));
         entity.setChannelId(channel.getId());
         entity.setSecret(secret);
+        entity.setGuildId(channel.getGuild().getId());
         channel.sendMessage(GiveawayEmbedUtils.renderMessage(entity)).queue(m -> {
             entity.setMessageId(m.getId());
             if (custom) {
@@ -153,6 +155,11 @@ public class GiveawayManager implements GiveawayService {
         endGiveaway(ge, true);
     }
 
+    @Override
+    public List<GiveawayEntity> getAllGiveaways(Guild guild) {
+        return giveawayRepository.findAllByGuildId(guild.getId());
+    }
+
     private void updateGiveaways(Timestamp before) {
         synchronized (giveawayLock) {
             List<GiveawayEntity> giveaways = giveawayRepository
@@ -210,6 +217,7 @@ public class GiveawayManager implements GiveawayService {
     private void endGiveaway(GiveawayEntity giveaway) {
         endGiveaway(giveaway, false);
     }
+
     private void endGiveaway(GiveawayEntity giveaway, boolean reroll) {
         log.info("Ending giveaway {}", giveaway);
         List<String> winners = determineWinners(giveaway);
@@ -227,7 +235,7 @@ public class GiveawayManager implements GiveawayService {
                         ":tada: Congratulations " + winnersAsMention + " you won **" + giveaway
                             .getName() + "**").queue();
                 } else {
-                    if(!reroll) {
+                    if (!reroll) {
                         channel.sendMessage(":tada: **" + giveaway.getName()
                             + "** has ended. Stay tuned for the winners!").queue();
                     }
