@@ -75,7 +75,8 @@ public class GiveawayEntity {
 
     public enum GiveawayState {
         RUNNING,
-        ENDED
+        ENDED,
+        ENDING
     }
 
     @Override

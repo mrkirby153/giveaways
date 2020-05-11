@@ -75,7 +75,10 @@ public class GiveawayCommands {
     @Command(name = "end", arguments = {"<mid:snowflake>"}, clearance = 100)
     public void endGiveaway(Context context, CommandContext cmdContext) {
         try {
+            GiveawayEntity entity = gr.findByMessageId(cmdContext.getNotNull("mid"))
+                .orElseThrow(() -> new CommandException("Giveaway not found!"));
             giveawayService.endGiveaway(cmdContext.getNotNull("mid"));
+            context.getChannel().sendMessage("Ended giveaway " + entity.getName()).queue();
         } catch (IllegalArgumentException e) {
             throw new CommandException(e.getMessage());
         }
@@ -139,9 +142,25 @@ public class GiveawayCommands {
 
         String winnerString = Arrays.stream(winners).map(String::trim).map(s -> "<@!" + s + ">")
             .collect(Collectors.joining(", "));
-        context.getChannel()
-            .sendMessage("The winners for **" + entity.getName() + "** are\n" + winnerString)
-            .queue();
+        String winMessage = String
+            .format("The winners for **%s** are\n%s", entity.getName(), winnerString);
+        if (winMessage.length() < 2000) {
+            context.getChannel().sendMessage(winMessage).queue();
+        } else {
+            StringBuilder sb = new StringBuilder();
+            sb.append(String.format("The winners for **%s** are\n", entity.getName()));
+            for (String winner : winners) {
+                String toAppend = String.format("<@!%s> ", winner);
+                if (sb.length() + toAppend.length() > 1990) {
+                    context.getChannel().sendMessage(sb.toString()).queue();
+                    sb = new StringBuilder();
+                }
+                sb.append(toAppend);
+            }
+            if (sb.length() > 0) {
+                context.getChannel().sendMessage(sb.toString()).queue();
+            }
+        }
     }
 
     @Command(name = "add", arguments = {"<role:snowflake>"}, clearance = 100, parent = "grole")
