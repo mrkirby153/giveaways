@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React from 'react';
 import {JWT_KEY, WINDOW_MSG_AUTHENTICATED} from "../../constants";
 
 const LoginButton: React.FC = () => {
@@ -6,10 +6,10 @@ const LoginButton: React.FC = () => {
   const authToken = localStorage.getItem(JWT_KEY);
 
   const receivePostedMessage = (event: any) => {
-    if (event.origin != window.origin) {
+    if (event.origin !== window.origin) {
       return;
     }
-    if (event.data == WINDOW_MSG_AUTHENTICATED) {
+    if (event.data === WINDOW_MSG_AUTHENTICATED) {
       window.removeEventListener("message", receivePostedMessage);
       window.location.reload();
     }
