@@ -1,7 +1,7 @@
 import React from 'react';
 import {JWT_KEY, WINDOW_MSG_AUTHENTICATED} from "../../constants";
 
-const LoginButton: React.FC = () => {
+const LoginButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = (props) => {
 
   const authToken = localStorage.getItem(JWT_KEY);
 
@@ -27,10 +27,10 @@ const LoginButton: React.FC = () => {
 
   if (authToken) {
     return (
-        <button className="btn btn-primary" onClick={logOut}>Log Out</button>
+        <button className="btn btn-primary" onClick={logOut} {...props}>Log Out</button>
     )
   } else {
-    return <button className="btn btn-primary" onClick={openPopupWindow}>Log In</button>
+    return <button className="btn btn-primary" onClick={openPopupWindow} {...props}>Log In</button>
   }
 
 }

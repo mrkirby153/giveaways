@@ -1,10 +1,11 @@
 import React, {useEffect, useState} from 'react';
 import {RouteComponentProps} from 'react-router-dom';
-import {axios} from "../../utils";
+import {axios, loggedIn} from "../../utils";
 import {Giveaway as GiveawayType, GiveawayState, Guild} from "../../types";
 import Giveaway from "./Giveaway";
 import moment from 'moment';
 import './index.scss';
+import LoginButton from "../Login/LoginButton";
 
 interface MatchProps {
   server: string
@@ -25,9 +26,10 @@ const Giveaways: React.FC<MyProps> = (props) => {
 
 
   const getGiveaways = () => {
-    axios.get(`/api/giveaways/${serverId}`).then(resp => {
-      setGiveaways(resp.data);
-    })
+    if (loggedIn())
+      axios.get(`/api/giveaways/${serverId}`).then(resp => {
+        setGiveaways(resp.data);
+      })
   }
   const getGuild = () => {
     axios.get(`/api/server/${serverId}`).then(resp => {
@@ -58,16 +60,22 @@ const Giveaways: React.FC<MyProps> = (props) => {
               <h1 className="text-center">{guild.name} Giveaways</h1>
               {guild.icon &&
               <img src={`https://cdn.discordapp.com/icons/${serverId}/${guild.icon}.png`}
-                   className="guild-icon" alt={guild.name + " icon"}/>}
-              <div className="container-fluid">
-                <h2>Active Giveaways</h2>
-                {activeGiveawayElements}
+                   className="guild-icon mb-2" alt={guild.name + " icon"}/>}
+              {!loggedIn() && <p>You need to log in before you can view all the giveaways</p>}
+              <div className="mb-2">
+                <LoginButton/>
               </div>
-              <hr/>
-              <div className="container-fluid">
-                <h2>Past Giveaways</h2>
-                {endedGiveawayElements}
-              </div>
+              {loggedIn() && <React.Fragment>
+                <div className="container-fluid">
+                  <h2>Active Giveaways</h2>
+                  {activeGiveawayElements}
+                </div>
+                <hr/>
+                <div className="container-fluid">
+                  <h2>Past Giveaways</h2>
+                  {endedGiveawayElements}
+                </div>
+              </React.Fragment>}
             </div>
           </div>
         </div>
