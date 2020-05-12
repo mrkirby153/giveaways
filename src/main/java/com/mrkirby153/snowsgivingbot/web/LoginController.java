@@ -1,10 +1,13 @@
 package com.mrkirby153.snowsgivingbot.web;
 
 import com.mrkirby153.snowsgivingbot.web.dto.DiscordOAuthUser;
+import com.mrkirby153.snowsgivingbot.web.dto.WebUser;
 import com.mrkirby153.snowsgivingbot.web.services.DiscordOAuthService;
+import com.mrkirby153.snowsgivingbot.web.services.JwtService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,11 +25,13 @@ import java.util.concurrent.ExecutionException;
 public class LoginController {
 
     private final DiscordOAuthService oAuthService;
+    private final JwtService jwtService;
     @Value("${oauth.client-id}")
     private String clientId;
 
-    public LoginController(DiscordOAuthService oAuthService) {
+    public LoginController(DiscordOAuthService oAuthService, JwtService jwtService) {
         this.oAuthService = oAuthService;
+        this.jwtService = jwtService;
     }
 
 
@@ -35,8 +40,21 @@ public class LoginController {
         return "\"" + clientId + "\"";
     }
 
+    @GetMapping("/user")
+    public WebUser user(Authentication authentication) {
+        Object principal = authentication.getPrincipal();
+        if (!(principal instanceof DiscordUser)) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                "Auth principal is not a discord user");
+        }
+        DiscordUser user = (DiscordUser) principal;
+        return new WebUser(user.getId(), user.getUsername(), user.getDiscriminator(),
+            user.getAvatar());
+    }
+
+
     @PostMapping("/login")
-    public CompletableFuture<DiscordOAuthUser> authorizeCode(
+    public CompletableFuture<String> authorizeCode(
         @RequestBody(required = false) Map<String, Object> payload) {
         if (payload == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing code");
@@ -52,7 +70,8 @@ public class LoginController {
         return oAuthService
             .getAuthorizationToken(redirectUri, code).thenApplyAsync(c -> {
                 try {
-                    return oAuthService.getDiscordUser(c).get();
+                    DiscordOAuthUser user = oAuthService.getDiscordUser(c).get();
+                    return jwtService.generateToken(user);
                 } catch (InterruptedException | ExecutionException e) {
                     e.printStackTrace();
                 }
