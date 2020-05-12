@@ -15,4 +15,7 @@ public interface EntrantRepository extends CrudRepository<GiveawayEntrantEntity,
     List<String> findAllIdsFromGiveaway(GiveawayEntity entity);
 
     boolean existsByGiveawayAndUserId(GiveawayEntity giveaway, String userId);
+
+    @Query("SELECT e FROM GiveawayEntrantEntity e WHERE e.userId = (:user) AND e.giveaway.guildId = (:guild)")
+    List<GiveawayEntrantEntity> findAllByUserInGuild(String user, String guild);
 }

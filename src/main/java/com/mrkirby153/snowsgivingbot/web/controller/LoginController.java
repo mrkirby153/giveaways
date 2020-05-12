@@ -1,5 +1,6 @@
-package com.mrkirby153.snowsgivingbot.web;
+package com.mrkirby153.snowsgivingbot.web.controller;
 
+import com.mrkirby153.snowsgivingbot.web.DiscordUser;
 import com.mrkirby153.snowsgivingbot.web.dto.DiscordOAuthUser;
 import com.mrkirby153.snowsgivingbot.web.dto.WebUser;
 import com.mrkirby153.snowsgivingbot.web.services.DiscordOAuthService;
@@ -42,12 +43,7 @@ public class LoginController {
 
     @GetMapping("/user")
     public WebUser user(Authentication authentication) {
-        Object principal = authentication.getPrincipal();
-        if (!(principal instanceof DiscordUser)) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                "Auth principal is not a discord user");
-        }
-        DiscordUser user = (DiscordUser) principal;
+        DiscordUser user = HttpUtils.getUser(authentication);
         return new WebUser(user.getId(), user.getUsername(), user.getDiscriminator(),
             user.getAvatar());
     }
