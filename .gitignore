@@ -33,3 +33,4 @@ out/
 
 ### TGABot ###
 /config/
+src/main/resources/static/
