@@ -1,5 +1,6 @@
 import React, {useEffect} from 'react';
 import axios from 'axios';
+import {JWT_KEY, WINDOW_MSG_AUTHENTICATED} from "../../constants";
 
 const LoginHandler: React.FC = () => {
 
@@ -13,7 +14,9 @@ const LoginHandler: React.FC = () => {
         code,
         redirect_uri: redirectUri
       }).then(resp => {
-        console.log(resp)
+        localStorage.setItem(JWT_KEY, resp.data);
+        window.opener.postMessage(WINDOW_MSG_AUTHENTICATED)
+        window.close();
       })
     } else {
       axios.get('/api/client').then(resp => {
