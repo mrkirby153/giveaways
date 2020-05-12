@@ -1,0 +1,27 @@
+.giveaway {
+  span {
+    display: block;
+  }
+  .giveaway-name {
+    font-size: 1.5em;
+  }
+  .entered {
+    color: #28a745;
+  }
+  .not-entered {
+    color: #dc3545;
+  }
+  .ends-at {
+    font-size: 0.8em;
+    color: gray;
+  }
+
+
+
+  &.ended {
+    .giveaway-name {
+      color: gray !important;
+      text-decoration: line-through;
+    }
+  }
+}

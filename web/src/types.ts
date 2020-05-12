@@ -17,3 +17,9 @@ export interface Giveaway {
   entered: boolean,
   state: GiveawayState
 }
+
+export interface Guild {
+  id: string,
+  name: string,
+  icon: string | null
+}
