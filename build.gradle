@@ -76,5 +76,13 @@ flyway {
 }
 
 task cleanAll {
-    dependsOn clean, flywayClean
+    dependsOn clean, flywayClean, ':web:clean'
 }
+
+bootJar {
+    from('web/build') {
+        into 'static'
+    }
+}
+
+bootJar.dependsOn(':web:assemble')

@@ -61,7 +61,7 @@ const Giveaways: React.FC<MyProps> = (props) => {
               {guild.icon &&
               <img src={`https://cdn.discordapp.com/icons/${serverId}/${guild.icon}.png`}
                    className="guild-icon mb-2" alt={guild.name + " icon"}/>}
-              {!loggedIn() && <p>You need to log in before you can view all the giveaways</p>}
+              {!loggedIn() && <p>You need to log in before you can view the giveaway list</p>}
               <div className="mb-2">
                 <LoginButton/>
               </div>
