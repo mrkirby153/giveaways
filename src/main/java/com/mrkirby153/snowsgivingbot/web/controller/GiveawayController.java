@@ -22,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 @RestController
 @Slf4j
@@ -29,9 +30,9 @@ import java.util.concurrent.TimeUnit;
 @AllArgsConstructor
 public class GiveawayController {
 
+    private static final Pattern snowflakePattern = Pattern.compile("\\d{17,18}");
     private final WebGiveawayService giveawayService;
     private final JDA jda;
-
     private final LoadingCache<String, ServerDto> dtoCache = CacheBuilder.newBuilder()
         .expireAfterWrite(5, TimeUnit.MINUTES).build(
             new CacheLoader<String, ServerDto>() {
@@ -55,6 +56,9 @@ public class GiveawayController {
     @GetMapping("/server/{server}")
     public ServerDto getServer(@PathVariable(name = "server") String guild)
         throws ExecutionException {
+        if (!snowflakePattern.matcher(guild).find()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
         Guild g = jda.getGuildById(guild);
         if (g == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
