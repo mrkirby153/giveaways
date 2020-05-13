@@ -40,13 +40,13 @@ const Giveaways: React.FC<MyProps> = (props) => {
   useEffect(getGiveaways, []);
   useEffect(getGuild, []);
 
-  const activeGiveawayElements = giveaways.filter(e => e.state == GiveawayState.RUNNING).sort((left, right) => {
+  const activeGiveawayElements = giveaways.filter(e => e.state === GiveawayState.RUNNING).sort((left, right) => {
     return moment.utc(right.endsAt).diff(moment.utc(left.endsAt));
   }).map(giveaway => {
     return <Giveaway key={giveaway.id} {...giveaway}/>
   });
 
-  const endedGiveawayElements = giveaways.filter(e => e.state != GiveawayState.RUNNING).sort((left, right) => {
+  const endedGiveawayElements = giveaways.filter(e => e.state !== GiveawayState.RUNNING).sort((left, right) => {
     return moment.utc(right.endsAt).diff(moment.utc(left.endsAt));
   }).map(giveaway => {
     return <Giveaway key={giveaway.id} {...giveaway}/>

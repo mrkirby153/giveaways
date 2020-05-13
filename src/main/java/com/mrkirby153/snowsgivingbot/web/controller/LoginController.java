@@ -8,6 +8,7 @@ import com.mrkirby153.snowsgivingbot.web.services.JwtService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 
 @RestController
@@ -36,7 +38,7 @@ public class LoginController {
     }
 
 
-    @GetMapping("/client")
+    @GetMapping(value = "/client", produces = {MediaType.TEXT_PLAIN_VALUE})
     public String clientId() {
         return "\"" + clientId + "\"";
     }
@@ -72,6 +74,12 @@ public class LoginController {
                     e.printStackTrace();
                 }
                 return null;
+            }).exceptionally(ex -> {
+                if (ex instanceof CompletionException) {
+                    Throwable cause = ex.getCause();
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, cause.getMessage());
+                }
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
             });
     }
 }

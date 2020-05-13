@@ -19,6 +19,7 @@ function App() {
         setUser(resp.data);
       }).catch(e => {
         localStorage.removeItem(JWT_KEY)
+        window.location.reload();
       })
     }
   }

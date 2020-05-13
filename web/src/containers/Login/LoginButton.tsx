@@ -1,5 +1,5 @@
 import React from 'react';
-import {JWT_KEY, WINDOW_MSG_AUTHENTICATED} from "../../constants";
+import {JWT_KEY, PREV_URL_KEY, WINDOW_MSG_AUTHENTICATED} from "../../constants";
 
 const LoginButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = (props) => {
 
@@ -16,6 +16,8 @@ const LoginButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = (pr
   }
 
   const openPopupWindow = () => {
+
+    localStorage.setItem(PREV_URL_KEY, window.location.href);
     window.open('/login', 'test', 'menubar=no,toolbar=no,location=no')
     window.addEventListener("message", receivePostedMessage, false);
   }

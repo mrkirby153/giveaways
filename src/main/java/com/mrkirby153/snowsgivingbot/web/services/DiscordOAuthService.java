@@ -1,6 +1,7 @@
 package com.mrkirby153.snowsgivingbot.web.services;
 
 import com.mrkirby153.snowsgivingbot.web.dto.DiscordOAuthUser;
+import lombok.extern.slf4j.Slf4j;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.FormBody;
@@ -18,6 +19,7 @@ import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 
 @Service
+@Slf4j
 public class DiscordOAuthService {
 
     private final OkHttpClient httpClient;
@@ -66,10 +68,10 @@ public class DiscordOAuthService {
             public void onResponse(Call call, Response response) throws IOException {
                 if (!response.isSuccessful()) {
                     ResponseBody body = response.body();
-                    System.out.println(body.string());
+                    log.debug("Received unsuccessful code {}: {}", response.code(), body.string());
                     body.close();
                     cf.completeExceptionally(
-                        new IllegalStateException("Received code " + response.code()));
+                        new IllegalStateException("Bad request"));
                 } else {
                     ResponseBody body = response.body();
                     if (body == null) {
@@ -102,7 +104,7 @@ public class DiscordOAuthService {
             public void onResponse(Call call, Response response) throws IOException {
                 if (!response.isSuccessful()) {
                     cf.completeExceptionally(
-                        new IllegalStateException("Received code " + response.code()));
+                        new IllegalStateException("Bad request"));
                 } else {
                     ResponseBody body = response.body();
                     if (body == null) {
