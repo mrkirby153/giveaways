@@ -110,6 +110,7 @@ public class DiscordOAuthService {
                         return;
                     }
                     JSONObject obj = new JSONObject(new JSONTokener(body.byteStream()));
+                    body.close();
                     DiscordOAuthUser user = new DiscordOAuthUser(obj.getString("id"),
                         obj.getString("username"), obj.getString("discriminator"),
                         obj.optString("avatar"));
