@@ -8,6 +8,7 @@ import com.mrkirby153.botcore.command.Context;
 import com.mrkirby153.botcore.command.args.CommandContext;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
+import com.mrkirby153.snowsgivingbot.services.RedisCacheService;
 import com.mrkirby153.snowsgivingbot.services.backfill.BackfillTask;
 import com.mrkirby153.snowsgivingbot.services.backfill.GiveawayBackfillService;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ public class AdminCommands {
 
     private final GiveawayBackfillService backfillService;
     private final GiveawayRepository giveawayRepository;
+    private final RedisCacheService redisCacheService;
 
     @Command(name = "ping", clearance = 100)
     public void ping(Context context, CommandContext cmdContext) {
@@ -107,5 +109,23 @@ public class AdminCommands {
             .orElseThrow(() -> new CommandException("Backfill task not running"));
         task.cancel();
         context.getChannel().sendMessage("Canceled task!").queue();
+    }
+
+    @Command(name = "cache", clearance = 101)
+    public void cacheStats(Context context, CommandContext cmdContext) {
+        StringBuilder sb = new StringBuilder();
+        redisCacheService.allQueues().forEach((queue, size) -> sb.append(" - ").append(queue)
+            .append(": ").append(size).append("\n"));
+        if(sb.length() == 0)
+            sb.append("All queues are empty!");
+        context.getChannel().sendMessage(sb.toString()).queue();
+    }
+
+    @Command(name = "workers", clearance = 101, arguments = {"<sleep:int>", "<batch:int>"})
+    public void workerSettings(Context context, CommandContext cmdContext) {
+        int batch = cmdContext.getNotNull("batch");
+        int sleep = cmdContext.getNotNull("sleep");
+        redisCacheService.updateWorkerSettings(batch, sleep);
+        context.getChannel().sendMessage("Updated!").queue();
     }
 }

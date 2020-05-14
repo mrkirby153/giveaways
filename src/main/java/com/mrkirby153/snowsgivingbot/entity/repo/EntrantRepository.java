@@ -11,6 +11,9 @@ public interface EntrantRepository extends CrudRepository<GiveawayEntrantEntity,
 
     List<GiveawayEntrantEntity> findAllByGiveaway(GiveawayEntity entity);
 
+    @Query("SELECT DISTINCT e.userId from GiveawayEntrantEntity e WHERE e.giveaway = (:entity) AND e.userId IN :users")
+    List<String> findAllPreviouslyEntered(GiveawayEntity entity, Iterable<String> users);
+
     @Query("SELECT DISTINCT e.userId FROM GiveawayEntrantEntity e WHERE e.giveaway = (:entity)")
     List<String> findAllIdsFromGiveaway(GiveawayEntity entity);
 

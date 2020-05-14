@@ -2,9 +2,10 @@ package com.mrkirby153.snowsgivingbot.services;
 
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity.GiveawayState;
-import com.mrkirby153.snowsgivingbot.entity.GiveawayEntrantEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
+import com.mrkirby153.snowsgivingbot.event.GiveawayEndedEvent;
+import com.mrkirby153.snowsgivingbot.event.GiveawayStartedEvent;
 import com.mrkirby153.snowsgivingbot.utils.GiveawayEmbedUtils;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
@@ -17,7 +18,9 @@ import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.events.message.MessageDeleteEvent;
 import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -45,6 +48,9 @@ public class GiveawayManager implements GiveawayService {
     private final EntrantRepository entrantRepository;
     private final GiveawayRepository giveawayRepository;
     private final DiscordService discordService;
+    private final RedisCacheService redisCacheService;
+    private final ApplicationEventPublisher publisher;
+    private final TaskExecutor taskExecutor;
 
     private final Object giveawayLock = new Object();
 
@@ -59,11 +65,17 @@ public class GiveawayManager implements GiveawayService {
     public GiveawayManager(JDA jda, EntrantRepository entrantRepository,
         GiveawayRepository giveawayRepository,
         DiscordService discordService,
-        @Value("${bot.reaction:\uD83C\uDF89}") String emote) {
+        @Value("${bot.reaction:\uD83C\uDF89}") String emote,
+        RedisCacheService redisCacheService,
+        ApplicationEventPublisher aep,
+        TaskExecutor taskExecutor) {
         this.jda = jda;
         this.entrantRepository = entrantRepository;
         this.giveawayRepository = giveawayRepository;
         this.discordService = discordService;
+        this.redisCacheService = redisCacheService;
+        this.publisher = aep;
+        this.taskExecutor = taskExecutor;
 
         if (emote.matches("\\d{17,18}")) {
             emoji = null;
@@ -94,7 +106,9 @@ public class GiveawayManager implements GiveawayService {
             } else {
                 m.addReaction(emoji).queue();
             }
-            cf.complete(giveawayRepository.save(entity));
+            GiveawayEntity save = giveawayRepository.save(entity);
+            publisher.publishEvent(new GiveawayStartedEvent(save));
+            cf.complete(save);
         });
         return cf;
     }
@@ -107,6 +121,7 @@ public class GiveawayManager implements GiveawayService {
         if (c != null) {
             c.deleteMessageById(entity.getMessageId()).queue();
         }
+        publisher.publishEvent(new GiveawayEndedEvent(entity));
         giveawayRepository.delete(entity);
     }
 
@@ -163,16 +178,8 @@ public class GiveawayManager implements GiveawayService {
 
     @Override
     public void enterGiveaway(User user, GiveawayEntity entity) {
-        if (entrantRepository.existsByGiveawayAndUserId(entity, user.getId())) {
-            log.debug("{} has already entered {}", user, entity);
-        } else {
-            if (entity.getState() != GiveawayState.RUNNING) {
-                log.debug("Not entering {} into {}. Has already ended", user, entity);
-                return;
-            }
-            log.debug("Entering {} into {}", user, entity);
-            GiveawayEntrantEntity gee = new GiveawayEntrantEntity(entity, user.getId());
-            entrantRepository.save(gee);
+        if (!redisCacheService.entered(user, entity)) {
+            redisCacheService.queueEntrant(entity, user);
         }
     }
 
@@ -252,69 +259,86 @@ public class GiveawayManager implements GiveawayService {
     private void endGiveaway(GiveawayEntity giveaway, boolean reroll) {
         log.info("Ending giveaway {}", giveaway);
 
-        giveaway.setState(GiveawayState.ENDING);
-        TextChannel channel = jda.getTextChannelById(giveaway.getChannelId());
-        if (channel != null) {
-            channel.retrieveMessageById(giveaway.getMessageId())
-                .queue(msg -> msg.editMessage(GiveawayEmbedUtils.renderMessage(giveaway)).queue());
-        }
-
-        List<String> winners = determineWinners(giveaway);
-
-        String winnersAsMention = winners.stream().map(id -> "<@!" + id + ">")
-            .collect(Collectors.joining(" "));
-        try {
+        taskExecutor.execute(() -> {
+            giveaway.setState(GiveawayState.ENDING);
+            giveawayRepository.save(giveaway);
+            TextChannel channel = jda.getTextChannelById(giveaway.getChannelId());
             if (channel != null) {
-                if (winners.size() == 0) {
-                    // Could not determine a winner
-                    channel.sendMessage("\uD83D\uDEA8 Could not determine a winner!").queue();
-                } else {
-                    if (!giveaway.isSecret()) {
-                        String winMessage = String
-                            .format(":tada: Congratulations %s you won **%s**", winnersAsMention,
-                                giveaway.getName());
-                        if (winMessage.length() >= 2000) {
-                            StringBuilder sb = new StringBuilder();
-                            sb.append(":tada: Congratulations ");
-                            for (String winner : winners) {
-                                String asMention = String.format("<@!%s> ", winner);
-                                if (sb.length() + asMention.length() > 1990) {
-                                    channel.sendMessage(sb.toString()).queue();
-                                    sb = new StringBuilder();
-                                }
-                                sb.append(asMention);
-                            }
-                            String appendMsg = String.format("you won **%s**", giveaway.getName());
-                            if (sb.length() + appendMsg.length() > 1990) {
-                                channel.sendMessage(sb.toString()).queue();
-                                channel.sendMessage(appendMsg).queue();
-                            } else {
-                                sb.append(appendMsg);
-                                channel.sendMessage(sb.toString()).queue();
-                            }
-                        } else {
-                            channel.sendMessage(winMessage).queue();
-                        }
-                    } else {
-                        if (!reroll) {
-                            channel.sendMessage(":tada: **" + giveaway.getName()
-                                + "** has ended. Stay tuned for the winners!").queue();
-                        }
-                    }
-                    channel.retrieveMessageById(giveaway.getMessageId()).queue(msg -> {
-                        msg.editMessage(GiveawayEmbedUtils.renderMessage(giveaway))
-                            .queue();
-                    });
+                channel.retrieveMessageById(giveaway.getMessageId())
+                    .queue(
+                        msg -> msg.editMessage(GiveawayEmbedUtils.renderMessage(giveaway)).queue());
+            }
+
+            long queueSize = 0;
+            while ((queueSize = redisCacheService.queueSize(giveaway)) > 0) {
+                try {
+                    log.debug("Giveaway {} has a queue size of {}", giveaway.getId(), queueSize);
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
             }
-        } catch (Exception e) {
-            log.error("An error occurred announcing the end of {}", giveaway.getName(), e);
-        } finally {
-            giveaway.setState(GiveawayState.ENDED);
-            giveaway.setFinalWinners(String.join(", ", winners));
-            giveawayRepository.save(giveaway);
-            entityCache.remove(giveaway.getMessageId());
-        }
+
+            List<String> winners = determineWinners(giveaway);
+
+            String winnersAsMention = winners.stream().map(id -> "<@!" + id + ">")
+                .collect(Collectors.joining(" "));
+            try {
+                if (channel != null) {
+                    if (winners.size() == 0) {
+                        // Could not determine a winner
+                        channel.sendMessage("\uD83D\uDEA8 Could not determine a winner!").queue();
+                    } else {
+                        if (!giveaway.isSecret()) {
+                            String winMessage = String
+                                .format(":tada: Congratulations %s you won **%s**",
+                                    winnersAsMention,
+                                    giveaway.getName());
+                            if (winMessage.length() >= 2000) {
+                                StringBuilder sb = new StringBuilder();
+                                sb.append(":tada: Congratulations ");
+                                for (String winner : winners) {
+                                    String asMention = String.format("<@!%s> ", winner);
+                                    if (sb.length() + asMention.length() > 1990) {
+                                        channel.sendMessage(sb.toString()).queue();
+                                        sb = new StringBuilder();
+                                    }
+                                    sb.append(asMention);
+                                }
+                                String appendMsg = String
+                                    .format("you won **%s**", giveaway.getName());
+                                if (sb.length() + appendMsg.length() > 1990) {
+                                    channel.sendMessage(sb.toString()).queue();
+                                    channel.sendMessage(appendMsg).queue();
+                                } else {
+                                    sb.append(appendMsg);
+                                    channel.sendMessage(sb.toString()).queue();
+                                }
+                            } else {
+                                channel.sendMessage(winMessage).queue();
+                            }
+                        } else {
+                            if (!reroll) {
+                                channel.sendMessage(":tada: **" + giveaway.getName()
+                                    + "** has ended. Stay tuned for the winners!").queue();
+                            }
+                        }
+                        channel.retrieveMessageById(giveaway.getMessageId()).queue(msg -> {
+                            msg.editMessage(GiveawayEmbedUtils.renderMessage(giveaway))
+                                .queue();
+                        });
+                    }
+                }
+            } catch (Exception e) {
+                log.error("An error occurred announcing the end of {}", giveaway.getName(), e);
+            } finally {
+                giveaway.setState(GiveawayState.ENDED);
+                giveaway.setFinalWinners(String.join(", ", winners));
+                giveawayRepository.save(giveaway);
+                entityCache.remove(giveaway.getMessageId());
+                publisher.publishEvent(new GiveawayEndedEvent(giveaway));
+            }
+        });
     }
 
     private boolean isGiveawayEmote(ReactionEmote emote) {
