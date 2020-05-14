@@ -7,9 +7,11 @@ import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.event.GiveawayEndedEvent;
 import com.mrkirby153.snowsgivingbot.event.GiveawayStartedEvent;
+import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.entities.User;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -37,20 +39,30 @@ public class RedisCacheManager implements RedisCacheService, CommandLineRunner {
     private final RedisTemplate<String, String> template;
     private final Map<Long, RedisCacheWorker> workers = new ConcurrentHashMap<>();
     private final List<Long> endedGiveaways = new ArrayList<>();
+    @Getter
+    private boolean standalone;
+    private final String topic;
     protected int sleepDelay = 100;
     private int batchSize = 100;
 
 
     public RedisCacheManager(RedisTemplate<String, String> template,
-        EntrantRepository entrantRepository, GiveawayRepository giveawayRepository) {
+        EntrantRepository entrantRepository, GiveawayRepository giveawayRepository,
+        @Value("${standalone:true}") boolean standalone,
+        @Value("${topic:giveaways}") String topic) {
         this.template = template;
         this.setOps = template.opsForSet();
         this.entrantRepository = entrantRepository;
         this.giveawayRepository = giveawayRepository;
+        this.standalone = standalone;
+        this.topic = topic;
     }
 
     @Override
     public void loadIntoCache(GiveawayEntity giveawayEntity) {
+        if (!standalone) {
+            return;
+        }
         log.info("Loading {} into the cache", giveawayEntity.getId());
         String key = "giveaway:" + giveawayEntity.getId();
         template.delete(key);
@@ -62,6 +74,9 @@ public class RedisCacheManager implements RedisCacheService, CommandLineRunner {
 
     @Override
     public void cacheUser(GiveawayEntity giveaway, String user) {
+        if (!standalone) {
+            return;
+        }
         String key = "giveaway:" + giveaway.getId();
         setOps.add(key, user);
     }
@@ -77,6 +92,9 @@ public class RedisCacheManager implements RedisCacheService, CommandLineRunner {
 
     @Override
     public void queueEntrant(GiveawayEntity giveawayEntity, User user) {
+        if (!standalone) {
+            return;
+        }
         String key = "queue:" + giveawayEntity.getId();
         if (this.endedGiveaways.contains(giveawayEntity.getId())) {
             return; // The giveaway has ended, don't queue entrants for processing
@@ -148,6 +166,16 @@ public class RedisCacheManager implements RedisCacheService, CommandLineRunner {
     }
 
     @Override
+    public void setStandalone(boolean standalone) {
+        if (standalone) {
+            template.convertAndSend(topic, "unload-all:");
+        } else {
+            template.convertAndSend(topic, "load-all:");
+        }
+        this.standalone = standalone;
+    }
+
+    @Override
     public void run(String... args) throws Exception {
         giveawayRepository.findAllByState(GiveawayState.RUNNING).forEach(giveaway -> {
             loadIntoCache(giveaway);
@@ -177,6 +205,11 @@ public class RedisCacheManager implements RedisCacheService, CommandLineRunner {
     @EventListener
     public void onGiveawayStart(GiveawayStartedEvent event) {
         startWorker(event.getGiveaway());
+        if (!standalone) {
+            template.convertAndSend(topic, String
+                .format("load:%d-%s", event.getGiveaway().getId(),
+                    event.getGiveaway().getMessageId()));
+        }
     }
 
     @EventListener
@@ -184,6 +217,9 @@ public class RedisCacheManager implements RedisCacheService, CommandLineRunner {
         stopWorker(event.getGiveaway());
         uncache(event.getGiveaway());
         this.endedGiveaways.add(event.getGiveaway().getId());
+        if (!standalone) {
+            template.convertAndSend(topic, String.format("unload:%d", event.getGiveaway().getId()));
+        }
     }
 
     private class RedisCacheWorker implements Runnable {

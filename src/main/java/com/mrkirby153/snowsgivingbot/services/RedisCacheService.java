@@ -85,4 +85,8 @@ public interface RedisCacheService {
      * @param sleepDelay The sleep delay
      */
     void updateWorkerSettings(int batchSize, int sleepDelay);
+
+    boolean isStandalone();
+
+    void setStandalone(boolean standalone);
 }

@@ -363,6 +363,9 @@ public class GiveawayManager implements GiveawayService {
     @EventListener
     @Async
     public void onReactionAdd(GuildMessageReactionAddEvent event) {
+        if (redisCacheService.isStandalone()) {
+            return;
+        }
         if (event.getUser().isBot() || event.getUser().isFake()) {
             return; // Ignore bots and fake users
         }
