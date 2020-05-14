@@ -1,8 +1,10 @@
 package com.mrkirby153.snowsgivingbot.services;
 
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
+import net.dv8tion.jda.api.entities.Emote;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.TextChannel;
+import net.dv8tion.jda.api.entities.User;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -21,4 +23,10 @@ public interface GiveawayService {
     void reroll(String mid, String[] users);
 
     List<GiveawayEntity> getAllGiveaways(Guild guild);
+
+    void enterGiveaway(User user, GiveawayEntity entity);
+
+    Emote getGiveawayEmote();
+
+    String getGiveawayEmoji();
 }

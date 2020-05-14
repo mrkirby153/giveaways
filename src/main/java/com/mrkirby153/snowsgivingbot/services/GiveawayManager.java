@@ -9,6 +9,7 @@ import com.mrkirby153.snowsgivingbot.utils.GiveawayEmbedUtils;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
 import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.entities.Emote;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.MessageReaction.ReactionEmote;
 import net.dv8tion.jda.api.entities.TextChannel;
@@ -160,6 +161,37 @@ public class GiveawayManager implements GiveawayService {
         return giveawayRepository.findAllByGuildId(guild.getId());
     }
 
+    @Override
+    public void enterGiveaway(User user, GiveawayEntity entity) {
+        if (entrantRepository.existsByGiveawayAndUserId(entity, user.getId())) {
+            log.debug("{} has already entered {}", user, entity);
+        } else {
+            if (entity.getState() != GiveawayState.RUNNING) {
+                log.debug("Not entering {} into {}. Has already ended", user, entity);
+                return;
+            }
+            log.debug("Entering {} into {}", user, entity);
+            GiveawayEntrantEntity gee = new GiveawayEntrantEntity(entity, user.getId());
+            entrantRepository.save(gee);
+        }
+    }
+
+    @Override
+    public Emote getGiveawayEmote() {
+        if (!custom) {
+            return null;
+        }
+        return jda.getEmoteById(this.emoteId);
+    }
+
+    @Override
+    public String getGiveawayEmoji() {
+        if (custom) {
+            return null;
+        }
+        return emoji;
+    }
+
     private void updateGiveaways(Timestamp before) {
         synchronized (giveawayLock) {
             List<GiveawayEntity> giveaways = giveawayRepository
@@ -167,7 +199,6 @@ public class GiveawayManager implements GiveawayService {
             updateMultipleGiveaways(giveaways);
         }
     }
-
 
     @Scheduled(fixedDelay = 1000L) // 1 Second
     public void updateGiveaways() {
@@ -223,8 +254,9 @@ public class GiveawayManager implements GiveawayService {
 
         giveaway.setState(GiveawayState.ENDING);
         TextChannel channel = jda.getTextChannelById(giveaway.getChannelId());
-        if(channel != null) {
-            channel.retrieveMessageById(giveaway.getMessageId()).queue(msg -> msg.editMessage(GiveawayEmbedUtils.renderMessage(giveaway)).queue());
+        if (channel != null) {
+            channel.retrieveMessageById(giveaway.getMessageId())
+                .queue(msg -> msg.editMessage(GiveawayEmbedUtils.renderMessage(giveaway)).queue());
         }
 
         List<String> winners = determineWinners(giveaway);
@@ -285,7 +317,6 @@ public class GiveawayManager implements GiveawayService {
         }
     }
 
-
     private boolean isGiveawayEmote(ReactionEmote emote) {
         if (emote.isEmote() != custom) {
             return false;
@@ -326,19 +357,5 @@ public class GiveawayManager implements GiveawayService {
     @Transactional
     public void onMessageDelete(MessageDeleteEvent event) {
         giveawayRepository.deleteAllByMessageId(event.getMessageId());
-    }
-
-    private void enterGiveaway(User user, GiveawayEntity entity) {
-        if (entrantRepository.existsByGiveawayAndUserId(entity, user.getId())) {
-            log.debug("{} has already entered {}", user, entity);
-        } else {
-            if (entity.getState() != GiveawayState.RUNNING) {
-                log.debug("Not entering {} into {}. Has already ended", user, entity);
-                return;
-            }
-            log.debug("Entering {} into {}", user, entity);
-            GiveawayEntrantEntity gee = new GiveawayEntrantEntity(entity, user.getId());
-            entrantRepository.save(gee);
-        }
     }
 }

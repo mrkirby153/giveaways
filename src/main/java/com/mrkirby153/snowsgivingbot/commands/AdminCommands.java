@@ -6,7 +6,11 @@ import com.mrkirby153.botcore.command.Command;
 import com.mrkirby153.botcore.command.CommandException;
 import com.mrkirby153.botcore.command.Context;
 import com.mrkirby153.botcore.command.args.CommandContext;
-import lombok.AllArgsConstructor;
+import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
+import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
+import com.mrkirby153.snowsgivingbot.services.backfill.BackfillTask;
+import com.mrkirby153.snowsgivingbot.services.backfill.GiveawayBackfillService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
 import org.slf4j.LoggerFactory;
@@ -14,8 +18,11 @@ import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class AdminCommands {
+
+    private final GiveawayBackfillService backfillService;
+    private final GiveawayRepository giveawayRepository;
 
     @Command(name = "ping", clearance = 100)
     public void ping(Context context, CommandContext cmdContext) {
@@ -51,5 +58,54 @@ public class AdminCommands {
                 "Logger `" + loggerName + "` is at level `" + logger.getEffectiveLevel().toString()
                     + "`").queue();
         }
+    }
+
+    @Command(name = "backfill", arguments = {"<id:int>"}, clearance = 101)
+    public void startBackfill(Context context, CommandContext cmdContext) {
+        GiveawayEntity entity = giveawayRepository
+            .findById(cmdContext.<Integer>getNotNull("id").longValue())
+            .orElseThrow(() -> new CommandException("Giveaway not found!"));
+        if (backfillService.getRunningGiveawayIDs().contains(entity.getId())) {
+            throw new CommandException("Backfill is already in progress!");
+        }
+        BackfillTask task = backfillService.startBackfill(entity);
+        task.getFuture().handle((count, throwable) -> {
+            if (throwable != null) {
+                context.getChannel().sendMessage(
+                    "Backfill did not complete successfully for " + entity.getName() + ": "
+                        + throwable.getMessage()).queue();
+            } else {
+                context.getChannel()
+                    .sendMessage(
+                        "Backfill of " + entity.getName() + " succeeded in " + Time.INSTANCE
+                            .format(1, task.getTimeTaken()) + ": (" + count + ")")
+                    .queue();
+            }
+            return null;
+        });
+        context.getChannel().sendMessage(
+            "Starting backfill of " + entity.getName() + " (" + task.getId()
+                + "). This may take a _long_ time").queue();
+    }
+
+    @Command(name = "status", parent = "backfill", clearance = 101)
+    public void status(Context context, CommandContext cmdContext) {
+        StringBuilder sb = new StringBuilder();
+        backfillService.getRunning().forEach(task -> sb
+            .append(String.format(" - %d: %d (%d processed)\n", task.getId(), task.getGiveawayId(),
+                task.getProcessed())));
+        if (sb.length() == 0) {
+            sb.append("No tasks running");
+        }
+        context.getChannel().sendMessage(sb.toString()).queue();
+    }
+
+    @Command(name = "cancel", parent = "backfill", clearance = 101, arguments = {"<id:int>"})
+    public void cancel(Context context, CommandContext cmdContext) {
+        BackfillTask task = backfillService.getRunning().stream()
+            .filter(t -> t.getId() == cmdContext.<Integer>getNotNull("id")).findFirst()
+            .orElseThrow(() -> new CommandException("Backfill task not running"));
+        task.cancel();
+        context.getChannel().sendMessage("Canceled task!").queue();
     }
 }
