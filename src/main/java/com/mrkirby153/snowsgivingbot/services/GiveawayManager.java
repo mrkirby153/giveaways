@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import javax.transaction.Transactional;
@@ -61,6 +62,8 @@ public class GiveawayManager implements GiveawayService {
     private final String emoji;
     private final boolean custom;
     private final String emoteId;
+
+    private final List<Long> endingGiveaways = new CopyOnWriteArrayList<>();
 
     public GiveawayManager(JDA jda, EntrantRepository entrantRepository,
         GiveawayRepository giveawayRepository,
@@ -258,6 +261,11 @@ public class GiveawayManager implements GiveawayService {
 
     private void endGiveaway(GiveawayEntity giveaway, boolean reroll) {
         log.info("Ending giveaway {}", giveaway);
+        if (endingGiveaways.contains(giveaway.getId())) {
+            log.info("Giveaway {} is already ending!", giveaway);
+            return;
+        }
+        endingGiveaways.add(giveaway.getId());
 
         taskExecutor.execute(() -> {
             giveaway.setState(GiveawayState.ENDING);
