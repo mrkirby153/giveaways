@@ -77,39 +77,48 @@ public class BackfillTask {
 
     public void process() {
         long startTime = System.currentTimeMillis();
-        log.info("Starting backfill of {}", giveaway.getId());
-        initialize();
-        ReactionPaginationAction action;
-        if (this.asciiEmote != null) {
-            action = message.retrieveReactionUsers(this.asciiEmote);
-        } else if (this.emote != null) {
-            action = message.retrieveReactionUsers(this.emote);
-        } else {
-            log.error("Error backfilling giveaway {}: Emote not found", giveaway.getId());
-            return;
-        }
-        action = action.setCheck(() -> !canceled).limit(LIMIT);
-        action.stream().forEach(user -> {
-            if (user.getId().equals(user.getJDA().getSelfUser().getId())) {
+        try {
+            log.info("Starting backfill of {}", giveaway.getId());
+            initialize();
+            ReactionPaginationAction action;
+            if (this.asciiEmote != null) {
+                action = message.retrieveReactionUsers(this.asciiEmote);
+            } else if (this.emote != null) {
+                action = message.retrieveReactionUsers(this.emote);
+            } else {
+                log.error("Error backfilling giveaway {}: Emote not found", giveaway.getId());
                 return;
             }
-            long cnt = entered.incrementAndGet();
-            log.debug("Backfilling {} ({})", user, cnt);
-            giveawayService.enterGiveaway(user, giveaway);
-            if (getProcessed() % 100 == 0) {
-                long toSleep = random.nextInt(100 - 50 + 1) + 50;
-                log.debug("Sleeping for {}ms to ease load", toSleep);
-                try {
-                    TimeUnit.MILLISECONDS.sleep(toSleep);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+            action = action.setCheck(() -> !canceled).limit(LIMIT);
+            action.stream().forEach(user -> {
+                if (user.getId().equals(user.getJDA().getSelfUser().getId())) {
+                    return;
                 }
+                long cnt = entered.incrementAndGet();
+                log.debug("Backfilling {} ({})", user, cnt);
+                giveawayService.enterGiveaway(user, giveaway);
+                if (getProcessed() % 100 == 0) {
+                    long toSleep = random.nextInt(100 - 50 + 1) + 50;
+                    log.debug("Sleeping for {}ms to ease load", toSleep);
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(toSleep);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+            timeTaken = System.currentTimeMillis() - startTime;
+            log.info("Backfill of {} complete! Processed {} users. Took {}", giveaway.getId(),
+                getProcessed(),
+                Time.INSTANCE.format(1, timeTaken));
+        } catch (Exception e) {
+            timeTaken = System.currentTimeMillis() - startTime;
+            log.error("Backfill of {} failed! Processed {} users in {}", giveaway.getId(),
+                getProcessed(), Time.INSTANCE.format(1, timeTaken), e);
+            if (future != null) {
+                future.completeExceptionally(e);
             }
-        });
-        timeTaken = System.currentTimeMillis() - startTime;
-        log.info("Backfill of {} complete! Processed {} users. Took {}", giveaway.getId(),
-            getProcessed(),
-            Time.INSTANCE.format(1, timeTaken));
+        }
     }
 
     public long getProcessed() {
