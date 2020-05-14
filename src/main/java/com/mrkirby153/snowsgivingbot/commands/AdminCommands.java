@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -25,6 +26,7 @@ public class AdminCommands {
     private final GiveawayBackfillService backfillService;
     private final GiveawayRepository giveawayRepository;
     private final RedisCacheService redisCacheService;
+    private final RedisTemplate<String, String> template;
 
     @Command(name = "ping", clearance = 100)
     public void ping(Context context, CommandContext cmdContext) {
@@ -116,8 +118,9 @@ public class AdminCommands {
         StringBuilder sb = new StringBuilder();
         redisCacheService.allQueues().forEach((queue, size) -> sb.append(" - ").append(queue)
             .append(": ").append(size).append("\n"));
-        if(sb.length() == 0)
+        if (sb.length() == 0) {
             sb.append("All queues are empty!");
+        }
         context.getChannel().sendMessage(sb.toString()).queue();
     }
 
@@ -127,5 +130,17 @@ public class AdminCommands {
         int sleep = cmdContext.getNotNull("sleep");
         redisCacheService.updateWorkerSettings(batch, sleep);
         context.getChannel().sendMessage("Updated!").queue();
+    }
+
+    @Command(name = "heartbeat", clearance = 101)
+    public void getHeartbeat(Context context, CommandContext commandContext) {
+        String lastheartbeat = template.opsForValue().get("heartbeat");
+        if (lastheartbeat == null) {
+            context.getChannel().sendMessage("! Last heartbeat was >30s ago !").queue();
+            return;
+        }
+        long last = Long.parseLong(lastheartbeat);
+        context.getChannel().sendMessage("Last heartbeat from worker was " + Time.INSTANCE
+            .format(1, System.currentTimeMillis() - last) + " ago").queue();
     }
 }
