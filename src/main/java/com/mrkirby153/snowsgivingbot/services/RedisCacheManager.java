@@ -36,6 +36,7 @@ public class RedisCacheManager implements RedisCacheService, CommandLineRunner {
     private final SetOperations<String, String> setOps;
     private final RedisTemplate<String, String> template;
     private final Map<Long, RedisCacheWorker> workers = new ConcurrentHashMap<>();
+    private final List<Long> endedGiveaways = new ArrayList<>();
     protected int sleepDelay = 100;
     private int batchSize = 100;
 
@@ -77,6 +78,9 @@ public class RedisCacheManager implements RedisCacheService, CommandLineRunner {
     @Override
     public void queueEntrant(GiveawayEntity giveawayEntity, User user) {
         String key = "queue:" + giveawayEntity.getId();
+        if (this.endedGiveaways.contains(giveawayEntity.getId())) {
+            return; // The giveaway has ended, don't queue entrants for processing
+        }
         log.debug("Enqueueing entrant {} to {}", user, giveawayEntity);
         setOps.add(key, user.getId());
     }
@@ -149,6 +153,8 @@ public class RedisCacheManager implements RedisCacheService, CommandLineRunner {
             loadIntoCache(giveaway);
             startWorker(giveaway);
         });
+        endedGiveaways.addAll(giveawayRepository.findAllByState(GiveawayState.ENDED).stream()
+            .map(GiveawayEntity::getId).collect(Collectors.toList()));
     }
 
     private void startWorker(GiveawayEntity giveaway) {
@@ -177,6 +183,7 @@ public class RedisCacheManager implements RedisCacheService, CommandLineRunner {
     public void onGiveawayStop(GiveawayEndedEvent event) {
         stopWorker(event.getGiveaway());
         uncache(event.getGiveaway());
+        this.endedGiveaways.add(event.getGiveaway().getId());
     }
 
     private class RedisCacheWorker implements Runnable {
