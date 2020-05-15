@@ -89,4 +89,6 @@ public interface RedisCacheService {
     boolean isStandalone();
 
     void setStandalone(boolean standalone);
+
+    void unloadGiveaway(long id);
 }

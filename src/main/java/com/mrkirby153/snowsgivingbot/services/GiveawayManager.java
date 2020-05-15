@@ -266,6 +266,7 @@ public class GiveawayManager implements GiveawayService {
             return;
         }
         endingGiveaways.add(giveaway.getId());
+        redisCacheService.unloadGiveaway(giveaway.getId());
 
         taskExecutor.execute(() -> {
             giveaway.setState(GiveawayState.ENDING);
@@ -363,7 +364,7 @@ public class GiveawayManager implements GiveawayService {
     @EventListener
     @Async
     public void onReactionAdd(GuildMessageReactionAddEvent event) {
-        if (redisCacheService.isStandalone()) {
+        if (!redisCacheService.isStandalone()) {
             return;
         }
         if (event.getUser().isBot() || event.getUser().isFake()) {

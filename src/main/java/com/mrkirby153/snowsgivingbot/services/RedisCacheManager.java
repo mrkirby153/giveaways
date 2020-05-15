@@ -176,6 +176,13 @@ public class RedisCacheManager implements RedisCacheService, CommandLineRunner {
     }
 
     @Override
+    public void unloadGiveaway(long id) {
+        if (!standalone) {
+            template.convertAndSend(topic, String.format("unload:%d", id));
+        }
+    }
+
+    @Override
     public void run(String... args) throws Exception {
         giveawayRepository.findAllByState(GiveawayState.RUNNING).forEach(giveaway -> {
             loadIntoCache(giveaway);
@@ -217,9 +224,7 @@ public class RedisCacheManager implements RedisCacheService, CommandLineRunner {
         stopWorker(event.getGiveaway());
         uncache(event.getGiveaway());
         this.endedGiveaways.add(event.getGiveaway().getId());
-        if (!standalone) {
-            template.convertAndSend(topic, String.format("unload:%d", event.getGiveaway().getId()));
-        }
+        unloadGiveaway(event.getGiveaway().getId());
     }
 
     private class RedisCacheWorker implements Runnable {
