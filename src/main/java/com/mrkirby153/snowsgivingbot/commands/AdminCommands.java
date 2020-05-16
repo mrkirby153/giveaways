@@ -144,7 +144,7 @@ public class AdminCommands {
         context.getChannel().sendMessage("Updated!").queue();
     }
 
-    @Command(name = "standalone", clearance = 101, arguments = {"<guild:string>"})
+    @Command(name = "get", clearance = 101, arguments = {"<guild:string>"}, parent="standalone")
     public void getStandalone(Context context, CommandContext commandContext) {
         String guild = commandContext.getNotNull("guild");
         Guild g = jda.getGuildById(guild);
@@ -159,8 +159,8 @@ public class AdminCommands {
         }
     }
 
-    @Command(name = "standalone", clearance = 101, arguments = {"<guild:string>",
-        "<enable:boolean>"})
+    @Command(name = "set", clearance = 101, arguments = {"<guild:string>",
+        "<enable:boolean>"}, parent="standalone")
     public void setStandalone(Context context, CommandContext commandContext) {
         String guild = commandContext.getNotNull("guild");
         boolean standalone = commandContext.getNotNull("enable");

@@ -56,7 +56,7 @@ public interface RedisQueueService {
 
     long getWorkerDelay();
 
-    long getBatchSize();
+    int getBatchSize();
 
     /**
      * Dequeues the giveaway from the service. This will finish processing the queue and then remove

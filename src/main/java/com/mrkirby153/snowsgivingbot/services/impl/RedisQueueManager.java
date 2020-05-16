@@ -116,7 +116,7 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
     @Override
     public void dequeue(GiveawayEntity giveawayEntity) {
         QueueProcessorTask task = assignedGiveaways.get(giveawayEntity.getId());
-        if(task != null) {
+        if (task != null) {
             log.debug("Dequeueing {}", giveawayEntity.getId());
             task.pendingFinish.add(giveawayEntity.getId());
         }
@@ -136,6 +136,7 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
         }
         log.debug("Assigning giveaway {} to processor {}", giveaway, target.getId());
         target.assignGiveaway(giveaway);
+        assignedGiveaways.put(giveaway, target);
     }
 
     /**
@@ -258,7 +259,9 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
                 try {
                     if (assignedGiveaways.size() == 0) {
                         log.debug("Thread {} has no giveaways assigned. Waiting for new work", id);
-                        syncObject.wait();
+                        synchronized (syncObject) {
+                            syncObject.wait();
+                        }
                         log.debug("Thread {} has been assigned work. Resuming", id);
                     }
                     List<Long> toRemove = new ArrayList<>();
@@ -270,7 +273,8 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
                         if (entrants.size() == 0) {
                             log.debug("Skipping entrants on {}", giveawayId);
                             if (pendingFinish.remove(giveawayId)) {
-                                log.debug("Giveaway has been moved to main and queue is now empty, removing");
+                                log.debug(
+                                    "Giveaway has been moved to main and queue is now empty, removing");
                                 toRemove.add(giveawayId);
                                 continue;
                             }

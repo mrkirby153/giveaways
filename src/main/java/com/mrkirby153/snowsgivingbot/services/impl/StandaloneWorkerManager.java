@@ -3,11 +3,13 @@ package com.mrkirby153.snowsgivingbot.services.impl;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
+import com.mrkirby153.snowsgivingbot.event.GiveawayStartedEvent;
 import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
 import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.entities.Guild;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -84,13 +86,20 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
         String workerId = getWorker();
         log.debug("Sending giveaway {} to worker {}", giveaway.getId(), workerId);
         redisTemplate.convertAndSend(String.format(GIVEAWAY_WORKER_FORMAT, workerId),
-            String.format("load:%d", giveaway.getId()));
+            String.format("load:%d-%s", giveaway.getId(), giveaway.getMessageId()));
     }
 
     @Override
     public void removeFromWorker(GiveawayEntity giveaway) {
         log.debug("Removing giveaway {} from the workers", giveaway.getId());
         redisTemplate.convertAndSend(GIVEAWAY_TOPIC, String.format("unload:%d", giveaway.getId()));
+    }
+
+    @EventListener
+    public void onGiveawayStart(GiveawayStartedEvent event) {
+        if (isStandalone(event.getGiveaway().getGuildId())) {
+            sendToWorker(event.getGiveaway());
+        }
     }
 
     /**
