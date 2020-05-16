@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
 
     private static final String GIVEAWAY_QUEUE_FORMAT = "queue:%s";
+    private static final String GIVEAWAY_SET_FORMAT = "giveaway:%s";
 
     private final SetOperations<String, String> setOps;
     private final RedisTemplate<String, String> template;
@@ -188,6 +189,8 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
     @EventListener
     public void onGiveawayEnd(GiveawayEndedEvent event) {
         unassign(event.getGiveaway().getId());
+        template.delete(String.format(GIVEAWAY_QUEUE_FORMAT, event.getGiveaway().getId()));
+        template.delete(String.format(GIVEAWAY_SET_FORMAT, event.getGiveaway().getId()));
     }
 
     @Override

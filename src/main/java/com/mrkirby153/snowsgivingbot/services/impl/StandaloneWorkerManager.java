@@ -50,7 +50,14 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
         List<GiveawayEntity> giveaways = giveawayRepository
             .findAllByGuildIdAndState(guild.getId(), GiveawayState.RUNNING);
         log.debug("Assigning {} giveaways to workers", giveaways.size());
-        giveaways.forEach(this::sendToWorker);
+        giveaways.forEach(giveaway -> {
+            sendToWorker(giveaway);
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
     }
 
     @Override
