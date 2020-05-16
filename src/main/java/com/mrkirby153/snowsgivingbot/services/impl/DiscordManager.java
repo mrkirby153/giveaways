@@ -1,5 +1,6 @@
-package com.mrkirby153.snowsgivingbot.services;
+package com.mrkirby153.snowsgivingbot.services.impl;
 
+import com.mrkirby153.snowsgivingbot.services.DiscordService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.JDA;

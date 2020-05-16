@@ -1,10 +1,11 @@
-package com.mrkirby153.snowsgivingbot.services;
+package com.mrkirby153.snowsgivingbot.services.impl;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayRoleEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRoleRepository;
+import com.mrkirby153.snowsgivingbot.services.PermissionService;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
