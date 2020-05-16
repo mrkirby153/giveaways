@@ -8,12 +8,15 @@ import com.mrkirby153.botcore.command.Context;
 import com.mrkirby153.botcore.command.args.CommandContext;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
-import com.mrkirby153.snowsgivingbot.services.RedisCacheService;
+import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
+import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import com.mrkirby153.snowsgivingbot.services.backfill.BackfillTask;
 import com.mrkirby153.snowsgivingbot.services.backfill.GiveawayBackfillService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.entities.Guild;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -25,7 +28,9 @@ public class AdminCommands {
 
     private final GiveawayBackfillService backfillService;
     private final GiveawayRepository giveawayRepository;
-    private final RedisCacheService redisCacheService;
+    private final RedisQueueService redisQueueService;
+    private final StandaloneWorkerService standaloneWorkerService;
+    private final JDA jda;
     private final RedisTemplate<String, String> template;
 
     @Command(name = "ping", clearance = 100)
@@ -116,7 +121,7 @@ public class AdminCommands {
     @Command(name = "cache", clearance = 101)
     public void cacheStats(Context context, CommandContext cmdContext) {
         StringBuilder sb = new StringBuilder();
-        redisCacheService.allQueues().forEach((queue, size) -> sb.append(" - ").append(queue)
+        redisQueueService.allQueues().forEach((queue, size) -> sb.append(" - ").append(queue)
             .append(": ").append(size).append("\n"));
         if (sb.length() == 0) {
             sb.append("All queues are empty!");
@@ -128,8 +133,48 @@ public class AdminCommands {
     public void workerSettings(Context context, CommandContext cmdContext) {
         int batch = cmdContext.getNotNull("batch");
         int sleep = cmdContext.getNotNull("sleep");
-        redisCacheService.updateWorkerSettings(batch, sleep);
+        redisQueueService.updateWorkers(sleep, batch);
         context.getChannel().sendMessage("Updated!").queue();
+    }
+
+    @Command(name = "tasks", clearance = 101, arguments = {"<tasks:int>"})
+    public void tasks(Context context, CommandContext cmdContext) {
+        int count = cmdContext.getNotNull("tasks");
+        redisQueueService.updateWorkerCount(count);
+        context.getChannel().sendMessage("Updated!").queue();
+    }
+
+    @Command(name = "standalone", clearance = 101, arguments = {"<guild:string>"})
+    public void getStandalone(Context context, CommandContext commandContext) {
+        String guild = commandContext.getNotNull("guild");
+        Guild g = jda.getGuildById(guild);
+        if (g == null) {
+            throw new CommandException("Guild not found!");
+        }
+        if (standaloneWorkerService.isStandalone(g)) {
+            context.getChannel().sendMessage("Guild " + g.getName() + " is standalone").queue();
+        } else {
+            context.getChannel().sendMessage("Guild " + g.getName() + " is not standalone").queue();
+
+        }
+    }
+
+    @Command(name = "standalone", clearance = 101, arguments = {"<guild:string>",
+        "<enable:boolean>"})
+    public void setStandalone(Context context, CommandContext commandContext) {
+        String guild = commandContext.getNotNull("guild");
+        boolean standalone = commandContext.getNotNull("enable");
+        Guild g = jda.getGuildById(guild);
+        if (g == null) {
+            throw new CommandException("Guild not found!");
+        }
+        if (standalone) {
+            standaloneWorkerService.enableStandaloneWorker(g);
+            context.getChannel().sendMessage("Enabled standalone for " + g.getName()).queue();
+        } else {
+            standaloneWorkerService.disableStandaloneWorker(g);
+            context.getChannel().sendMessage("Disabled standalone for " + g.getName()).queue();
+        }
     }
 
     @Command(name = "heartbeat", clearance = 101)

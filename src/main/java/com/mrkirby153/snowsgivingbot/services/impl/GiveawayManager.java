@@ -2,13 +2,15 @@ package com.mrkirby153.snowsgivingbot.services.impl;
 
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity.GiveawayState;
+import com.mrkirby153.snowsgivingbot.entity.GiveawayEntrantEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.event.GiveawayEndedEvent;
 import com.mrkirby153.snowsgivingbot.event.GiveawayStartedEvent;
 import com.mrkirby153.snowsgivingbot.services.DiscordService;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService;
-import com.mrkirby153.snowsgivingbot.services.RedisCacheService;
+import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
+import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import com.mrkirby153.snowsgivingbot.utils.GiveawayEmbedUtils;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
@@ -52,7 +54,8 @@ public class GiveawayManager implements GiveawayService {
     private final EntrantRepository entrantRepository;
     private final GiveawayRepository giveawayRepository;
     private final DiscordService discordService;
-    private final RedisCacheService redisCacheService;
+    private final StandaloneWorkerService sws;
+    private final RedisQueueService rqs;
     private final ApplicationEventPublisher publisher;
     private final TaskExecutor taskExecutor;
 
@@ -72,16 +75,16 @@ public class GiveawayManager implements GiveawayService {
         GiveawayRepository giveawayRepository,
         DiscordService discordService,
         @Value("${bot.reaction:\uD83C\uDF89}") String emote,
-        RedisCacheService redisCacheService,
         ApplicationEventPublisher aep,
-        TaskExecutor taskExecutor) {
+        TaskExecutor taskExecutor, StandaloneWorkerService sws, RedisQueueService rqs) {
         this.jda = jda;
         this.entrantRepository = entrantRepository;
         this.giveawayRepository = giveawayRepository;
         this.discordService = discordService;
-        this.redisCacheService = redisCacheService;
         this.publisher = aep;
         this.taskExecutor = taskExecutor;
+        this.sws = sws;
+        this.rqs = rqs;
 
         if (emote.matches("\\d{17,18}")) {
             emoji = null;
@@ -184,8 +187,16 @@ public class GiveawayManager implements GiveawayService {
 
     @Override
     public void enterGiveaway(User user, GiveawayEntity entity) {
-        if (!redisCacheService.entered(user, entity)) {
-            redisCacheService.queueEntrant(entity, user);
+        if (entrantRepository.existsByGiveawayAndUserId(entity, user.getId())) {
+            log.debug("{} has already entered {}", user, entity);
+        } else {
+            if (entity.getState() != GiveawayState.RUNNING) {
+                log.debug("Not entering {} into {}. Has already ended", user, entity);
+                return;
+            }
+            log.debug("Entering {} into {}", user, entity);
+            GiveawayEntrantEntity gee = new GiveawayEntrantEntity(entity, user.getId());
+            entrantRepository.save(gee);
         }
     }
 
@@ -269,7 +280,7 @@ public class GiveawayManager implements GiveawayService {
             return;
         }
         endingGiveaways.add(giveaway.getId());
-        redisCacheService.unloadGiveaway(giveaway.getId());
+        sws.removeFromWorker(giveaway);
 
         taskExecutor.execute(() -> {
             giveaway.setState(GiveawayState.ENDING);
@@ -282,7 +293,7 @@ public class GiveawayManager implements GiveawayService {
             }
 
             long queueSize = 0;
-            while ((queueSize = redisCacheService.queueSize(giveaway)) > 0) {
+            while ((queueSize = rqs.queueSize(giveaway.getId())) > 0) {
                 try {
                     log.debug("Giveaway {} has a queue size of {}", giveaway.getId(), queueSize);
                     Thread.sleep(1000);
@@ -367,7 +378,7 @@ public class GiveawayManager implements GiveawayService {
     @EventListener
     @Async
     public void onReactionAdd(GuildMessageReactionAddEvent event) {
-        if (!redisCacheService.isStandalone()) {
+        if (sws.isStandalone(event.getGuild())) {
             return;
         }
         if (event.getUser().isBot() || event.getUser().isFake()) {
