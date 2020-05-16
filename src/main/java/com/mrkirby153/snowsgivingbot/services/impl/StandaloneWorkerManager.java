@@ -3,9 +3,11 @@ package com.mrkirby153.snowsgivingbot.services.impl;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
+import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
 import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.entities.Guild;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -28,13 +30,15 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
     private final SetOperations<String, String> setOperations;
     private final ZSetOperations<String, String> zSetOperations;
     private final GiveawayRepository giveawayRepository;
+    private final RedisQueueService redisQueueService;
 
     public StandaloneWorkerManager(RedisTemplate<String, String> redisTemplate,
-        GiveawayRepository giveawayRepository) {
+        GiveawayRepository giveawayRepository, @Lazy RedisQueueService redisQueueService) {
         this.redisTemplate = redisTemplate;
         this.setOperations = redisTemplate.opsForSet();
         this.zSetOperations = redisTemplate.opsForZSet();
         this.giveawayRepository = giveawayRepository;
+        this.redisQueueService = redisQueueService;
     }
 
     @Override
@@ -54,7 +58,11 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
         List<GiveawayEntity> giveaways = giveawayRepository
             .findAllByGuildIdAndState(guild.getId(), GiveawayState.RUNNING);
         log.debug("Unassigning {} giveaways from workers", giveaways.size());
-        giveaways.forEach(this::removeFromWorker);
+        giveaways.forEach(g -> {
+            removeFromWorker(g);
+            redisQueueService.dequeue(g);
+        });
+
     }
 
     @Override

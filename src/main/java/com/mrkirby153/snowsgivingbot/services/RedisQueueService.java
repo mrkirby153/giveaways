@@ -1,5 +1,7 @@
 package com.mrkirby153.snowsgivingbot.services;
 
+import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
+
 import java.util.List;
 import java.util.Map;
 
@@ -55,4 +57,12 @@ public interface RedisQueueService {
     long getWorkerDelay();
 
     long getBatchSize();
+
+    /**
+     * Dequeues the giveaway from the service. This will finish processing the queue and then remove
+     * the giveaway from the assigned task pool
+     *
+     * @param giveawayEntity The giveaway entity to dequeue
+     */
+    void dequeue(GiveawayEntity giveawayEntity);
 }

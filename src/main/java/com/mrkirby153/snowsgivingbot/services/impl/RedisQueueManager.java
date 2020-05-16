@@ -113,6 +113,15 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
         return delay;
     }
 
+    @Override
+    public void dequeue(GiveawayEntity giveawayEntity) {
+        QueueProcessorTask task = assignedGiveaways.get(giveawayEntity.getId());
+        if(task != null) {
+            log.debug("Dequeueing {}", giveawayEntity.getId());
+            task.pendingFinish.add(giveawayEntity.getId());
+        }
+    }
+
     /**
      * Assigns a giveaway to a queue processor
      *
@@ -194,6 +203,7 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
 
         @Getter
         private final List<Long> assignedGiveaways = new CopyOnWriteArrayList<>();
+        private final List<Long> pendingFinish = new CopyOnWriteArrayList<>();
         private final Map<Long, GiveawayEntity> cachedGiveaways = new ConcurrentHashMap<>();
         private final Thread thread;
         @Getter
@@ -259,6 +269,11 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
                             .processQueue(giveawayId, redisQueueManager.getBatchSize());
                         if (entrants.size() == 0) {
                             log.debug("Skipping entrants on {}", giveawayId);
+                            if (pendingFinish.remove(giveawayId)) {
+                                log.debug("Giveaway has been moved to main and queue is now empty, removing");
+                                toRemove.add(giveawayId);
+                                continue;
+                            }
                             Thread.sleep(5000);
                             continue;
                         }
@@ -286,8 +301,6 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
 
                     if (toRemove.size() > 0) {
                         toRemove.forEach(id -> {
-                            assignedGiveaways.removeIf(obj -> obj.equals(id));
-                            cachedGiveaways.remove(id);
                             redisQueueManager.unassign(id);
                         });
                     }
