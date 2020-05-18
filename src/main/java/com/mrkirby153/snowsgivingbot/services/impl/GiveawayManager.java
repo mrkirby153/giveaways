@@ -230,6 +230,7 @@ public class GiveawayManager implements GiveawayService {
 
     @Scheduled(fixedDelay = 1000L) // 1 Second
     public void updateGiveaways() {
+        // TODO: 5/18/20 We should spread this across over the course of a minute. Should be able to mod 60 the giveaway id
         updateEndedGiveaways();
         long count = counter.getAndIncrement();
         Instant now = Instant.now();
