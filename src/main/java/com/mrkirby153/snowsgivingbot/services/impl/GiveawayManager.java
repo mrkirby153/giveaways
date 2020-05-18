@@ -26,6 +26,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -58,6 +59,7 @@ public class GiveawayManager implements GiveawayService {
     private final RedisQueueService rqs;
     private final ApplicationEventPublisher publisher;
     private final TaskExecutor taskExecutor;
+    private final TaskScheduler taskScheduler;
 
     private final Object giveawayLock = new Object();
 
@@ -76,7 +78,8 @@ public class GiveawayManager implements GiveawayService {
         DiscordService discordService,
         @Value("${bot.reaction:\uD83C\uDF89}") String emote,
         ApplicationEventPublisher aep,
-        TaskExecutor taskExecutor, StandaloneWorkerService sws, RedisQueueService rqs) {
+        TaskExecutor taskExecutor, StandaloneWorkerService sws, RedisQueueService rqs,
+        TaskScheduler taskScheduler) {
         this.jda = jda;
         this.entrantRepository = entrantRepository;
         this.giveawayRepository = giveawayRepository;
@@ -85,6 +88,7 @@ public class GiveawayManager implements GiveawayService {
         this.taskExecutor = taskExecutor;
         this.sws = sws;
         this.rqs = rqs;
+        this.taskScheduler = taskScheduler;
 
         if (emote.matches("\\d{17,18}")) {
             emoji = null;
@@ -275,6 +279,7 @@ public class GiveawayManager implements GiveawayService {
 
     private void endGiveaway(GiveawayEntity giveaway, boolean reroll) {
         log.info("Ending giveaway {}", giveaway);
+        // Prevent giveaways from ending twice
         if (endingGiveaways.contains(giveaway.getId())) {
             log.info("Giveaway {} is already ending!", giveaway);
             return;
@@ -360,6 +365,10 @@ public class GiveawayManager implements GiveawayService {
                 giveawayRepository.save(giveaway);
                 entityCache.remove(giveaway.getMessageId());
                 publisher.publishEvent(new GiveawayEndedEvent(giveaway));
+                taskScheduler.schedule(() -> {
+                    log.debug("Removing {} from finished giveaways", giveaway.getId());
+                    endingGiveaways.remove(giveaway.getId());
+                }, Instant.now().plusSeconds(30));
             }
         });
     }
