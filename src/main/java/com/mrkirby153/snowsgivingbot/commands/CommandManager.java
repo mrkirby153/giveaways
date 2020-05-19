@@ -22,6 +22,7 @@ public class CommandManager {
     static {
         commands.add(GiveawayCommands.class);
         commands.add(AdminCommands.class);
+        commands.add(HelpCommand.class);
     }
 
     private final CommandExecutor executor;

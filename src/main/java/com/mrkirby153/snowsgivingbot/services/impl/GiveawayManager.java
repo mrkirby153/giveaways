@@ -220,6 +220,21 @@ public class GiveawayManager implements GiveawayService {
         return emoji;
     }
 
+    @Override
+    public void update(GiveawayEntity entity) {
+        Guild g = jda.getGuildById(entity.getGuildId());
+        if (g == null) {
+            return;
+        }
+        TextChannel chan = g.getTextChannelById(entity.getChannelId());
+        if (chan == null) {
+            return;
+        }
+        chan.retrieveMessageById(entity.getMessageId()).queue(msg -> {
+            msg.editMessage(GiveawayEmbedUtils.renderMessage(entity)).queue();
+        });
+    }
+
     private void updateGiveaways(Timestamp before) {
         synchronized (giveawayLock) {
             List<GiveawayEntity> giveaways = giveawayRepository

@@ -163,7 +163,22 @@ public class GiveawayCommands {
         }
     }
 
-    @Command(name = "add", arguments = {"<role:snowflake>"}, clearance = 100, parent = "grole")
+    @Command(name = "set", parent = "winners", arguments = {"<mid:snowflake>",
+        "<winners:int>"}, clearance = 100)
+    public void setWinners(Context context, CommandContext commandContext) {
+        GiveawayEntity entity = gr.findByMessageId(commandContext.getNotNull("mid"))
+            .orElseThrow(() -> new CommandException("Giveaway was not found"));
+        if (entity.getState() != GiveawayState.RUNNING) {
+            throw new CommandException("Giveaway is not running");
+        }
+        entity.setWinners(commandContext.getNotNull("winners"));
+        gr.save(entity);
+        giveawayService.update(entity);
+        context.getChannel().sendMessage("Winners set to " + commandContext.getNotNull("winners"))
+            .queue();
+    }
+
+    @Command(name = "add", arguments = {"<role:snowflake>"}, clearance = 100, parent = "role")
     public void addRole(Context context, CommandContext commandContext) {
         String roleId = commandContext.getNotNull("role");
         Role role = context.getGuild().getRoleById(roleId);
@@ -177,7 +192,7 @@ public class GiveawayCommands {
             .queue();
     }
 
-    @Command(name = "remove", arguments = {"<role:snowflake>"}, clearance = 100, parent = "grole")
+    @Command(name = "remove", arguments = {"<role:snowflake>"}, clearance = 100, parent = "role")
     public void removeRole(Context context, CommandContext commandContext) {
         String roleId = commandContext.getNotNull("role");
         Role role = context.getGuild().getRoleById(roleId);
@@ -190,7 +205,7 @@ public class GiveawayCommands {
             .queue();
     }
 
-    @Command(name = "list", clearance = 100, parent = "grole")
+    @Command(name = "list", clearance = 100, parent = "role")
     public void listRoles(Context context, CommandContext commandContext) {
         List<GiveawayRoleEntity> roles = ps.getGiveawayRoles(context.getGuild());
         StringBuilder sb = new StringBuilder();
@@ -201,7 +216,7 @@ public class GiveawayCommands {
         context.getChannel().sendMessage(sb).queue();
     }
 
-    @Command(name = "gexport", clearance = 100)
+    @Command(name = "export", clearance = 100)
     public void export(Context context, CommandContext commandContext) {
         List<GiveawayEntity> giveaways = giveawayService.getAllGiveaways(context.getGuild());
         if (giveaways.size() == 0) {

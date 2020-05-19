@@ -29,4 +29,6 @@ public interface GiveawayService {
     Emote getGiveawayEmote();
 
     String getGiveawayEmoji();
+
+    void update(GiveawayEntity entity);
 }
