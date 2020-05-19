@@ -17,10 +17,13 @@ import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
@@ -121,6 +124,31 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
     public void removeFromWorker(GiveawayEntity giveaway) {
         log.debug("Removing giveaway {} from the workers", giveaway.getId());
         redisTemplate.convertAndSend(GIVEAWAY_TOPIC, String.format("unload:%d", giveaway.getId()));
+    }
+
+    @Override
+    public Map<String, Long> getWorkerHeartbeats() {
+        Map<String, Long> heartbeats = new HashMap<>();
+        Set<String> keys = redisTemplate.keys("heartbeat:*");
+        if (keys != null) {
+            keys.forEach(key -> {
+                String s = redisTemplate.opsForValue().get(key);
+                if (s != null) {
+                    heartbeats.put(key, Long.parseLong(s));
+                }
+            });
+        }
+        return heartbeats;
+    }
+
+    @Override
+    public Map<String, Double> getWorkerLoad() {
+        Map<String, Double> load = new HashMap<>();
+        Set<TypedTuple<String>> values = zSetOperations.rangeWithScores(WORKER_LIST_KEY, 0, -1);
+        if (values != null) {
+            values.forEach(val -> load.put(val.getValue(), val.getScore()));
+        }
+        return load;
     }
 
     @EventListener

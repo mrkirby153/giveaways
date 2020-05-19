@@ -7,13 +7,18 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Emote;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.MessageChannel;
 import net.dv8tion.jda.api.entities.TextChannel;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -99,5 +104,38 @@ public class DiscordManager implements DiscordService {
         }
         log.debug("Message was not found");
         throw new NoSuchElementException("Message not found");
+    }
+
+    @Override
+    public CompletableFuture<List<Message>> sendLongMessage(MessageChannel channel,
+        String message) {
+        StringBuilder buffer = new StringBuilder(2000);
+        List<CompletableFuture<Message>> futures = new ArrayList<>();
+        for (String line : message.split("\n")) {
+            String toAppend = String.format("%s\n", line);
+            if (toAppend.length() > 1990) {
+                throw new IllegalArgumentException(
+                    "Attempting to send a message that has a single line more than 1990 characters in length");
+            }
+            if (toAppend.length() + buffer.length() >= 1990) {
+                futures.add(channel.sendMessage(buffer.toString()).submit());
+                buffer = new StringBuilder(2000);
+            }
+            buffer.append(toAppend);
+        }
+        if (buffer.length() > 0) {
+            futures.add(channel.sendMessage(buffer.toString()).submit());
+        }
+        CompletableFuture<List<Message>> future = new CompletableFuture<>();
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+            .whenComplete((resp, throwable) -> {
+                if (throwable != null) {
+                    future.completeExceptionally(throwable);
+                } else {
+                    future.complete(
+                        futures.stream().map(f -> f.getNow(null)).collect(Collectors.toList()));
+                }
+            });
+        return future;
     }
 }

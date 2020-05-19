@@ -8,6 +8,7 @@ import com.mrkirby153.botcore.command.Context;
 import com.mrkirby153.botcore.command.args.CommandContext;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
+import com.mrkirby153.snowsgivingbot.services.DiscordService;
 import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
 import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import com.mrkirby153.snowsgivingbot.services.backfill.BackfillTask;
@@ -21,12 +22,15 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.Map;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AdminCommands {
 
     private final GiveawayBackfillService backfillService;
+    private final DiscordService discordService;
     private final GiveawayRepository giveawayRepository;
     private final RedisQueueService redisQueueService;
     private final StandaloneWorkerService standaloneWorkerService;
@@ -144,7 +148,7 @@ public class AdminCommands {
         context.getChannel().sendMessage("Updated!").queue();
     }
 
-    @Command(name = "get", clearance = 101, arguments = {"<guild:string>"}, parent="standalone")
+    @Command(name = "get", clearance = 101, arguments = {"<guild:string>"}, parent = "standalone")
     public void getStandalone(Context context, CommandContext commandContext) {
         String guild = commandContext.getNotNull("guild");
         Guild g = jda.getGuildById(guild);
@@ -160,7 +164,7 @@ public class AdminCommands {
     }
 
     @Command(name = "set", clearance = 101, arguments = {"<guild:string>",
-        "<enable:boolean>"}, parent="standalone")
+        "<enable:boolean>"}, parent = "standalone")
     public void setStandalone(Context context, CommandContext commandContext) {
         String guild = commandContext.getNotNull("guild");
         boolean standalone = commandContext.getNotNull("enable");
@@ -177,15 +181,28 @@ public class AdminCommands {
         }
     }
 
-    @Command(name = "heartbeat", clearance = 101)
+    @Command(name = "status", clearance = 101)
     public void getHeartbeat(Context context, CommandContext commandContext) {
-        String lastheartbeat = template.opsForValue().get("heartbeat");
-        if (lastheartbeat == null) {
-            context.getChannel().sendMessage("! Last heartbeat was >30s ago !").queue();
-            return;
+        StringBuilder sb = new StringBuilder();
+        sb.append("**Worker Load**\n");
+        Map<String, Double> workerLoad = standaloneWorkerService.getWorkerLoad();
+        if (workerLoad.size() == 0) {
+            sb.append("No workers reported load\n");
+        } else {
+            workerLoad
+                .forEach((id, load) -> sb.append(String.format(" %s - %s\n", id, load)));
         }
-        long last = Long.parseLong(lastheartbeat);
-        context.getChannel().sendMessage("Last heartbeat from worker was " + Time.INSTANCE
-            .format(1, System.currentTimeMillis() - last) + " ago").queue();
+        sb.append("**Worker Heartbeats**\n");
+        Map<String, Long> workerHeartbeats = standaloneWorkerService.getWorkerHeartbeats();
+        if (workerHeartbeats.size() == 0) {
+            sb.append("No workers reported heartbeats recently\n");
+        } else {
+            workerHeartbeats.forEach((id, heartbeat) -> {
+                String diff = Time.INSTANCE.format(1, System.currentTimeMillis() - heartbeat);
+                id = id.split(":")[1];
+                sb.append(String.format(" %s: %s ago\n", id, diff));
+            });
+        }
+        discordService.sendLongMessage(context.getChannel(), sb.toString());
     }
 }

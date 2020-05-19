@@ -3,6 +3,8 @@ package com.mrkirby153.snowsgivingbot.services;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import net.dv8tion.jda.api.entities.Guild;
 
+import java.util.Map;
+
 /**
  * Service handling the coordination of giveaways running on standalone workers
  */
@@ -57,4 +59,19 @@ public interface StandaloneWorkerService {
      * @param giveaway The giveaway to remove
      */
     void removeFromWorker(GiveawayEntity giveaway);
+
+
+    /**
+     * Gets the heartbeats of all the workers
+     *
+     * @return The workers heartbeats
+     */
+    Map<String, Long> getWorkerHeartbeats();
+
+    /**
+     * Gets the load of all the workers
+     *
+     * @return The workers loads
+     */
+    Map<String, Double> getWorkerLoad();
 }
