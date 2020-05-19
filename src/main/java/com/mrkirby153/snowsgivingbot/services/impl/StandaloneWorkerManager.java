@@ -1,5 +1,8 @@
 package com.mrkirby153.snowsgivingbot.services.impl;
 
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
@@ -8,6 +11,7 @@ import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
 import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.entities.Guild;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -18,6 +22,7 @@ import org.springframework.stereotype.Service;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 @Slf4j
 @Service
@@ -34,6 +39,8 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
     private final GiveawayRepository giveawayRepository;
     private final RedisQueueService redisQueueService;
 
+    private final LoadingCache<String, Boolean> standaloneCache;
+
     public StandaloneWorkerManager(RedisTemplate<String, String> redisTemplate,
         GiveawayRepository giveawayRepository, @Lazy RedisQueueService redisQueueService) {
         this.redisTemplate = redisTemplate;
@@ -41,6 +48,18 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
         this.zSetOperations = redisTemplate.opsForZSet();
         this.giveawayRepository = giveawayRepository;
         this.redisQueueService = redisQueueService;
+
+        this.standaloneCache = CacheBuilder.newBuilder().maximumSize(1000).build(
+            new CacheLoader<String, Boolean>() {
+                @Override
+                public Boolean load(@NotNull String key) throws Exception {
+                    Boolean isMember = setOperations.isMember(STANDALONE_KEY, key);
+                    if (isMember == null) {
+                        return false;
+                    }
+                    return isMember;
+                }
+            });
     }
 
     @Override
@@ -58,6 +77,7 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
                 e.printStackTrace();
             }
         });
+        standaloneCache.invalidate(guild.getId());
     }
 
     @Override
@@ -71,7 +91,7 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
             removeFromWorker(g);
             redisQueueService.dequeue(g);
         });
-
+        standaloneCache.invalidate(guild.getId());
     }
 
     @Override
@@ -80,12 +100,13 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
     }
 
     @Override
-    public boolean isStandalone(String id) {
-        Boolean isMember = setOperations.isMember(STANDALONE_KEY, id);
-        if (isMember == null) {
-            return false;
+    public Boolean isStandalone(String id) {
+        try {
+            return standaloneCache.get(id);
+        } catch (ExecutionException e) {
+            log.error("Could not determine standalone status for {}", id, e);
         }
-        return isMember;
+        return false;
     }
 
     @Override

@@ -41,7 +41,7 @@ public interface StandaloneWorkerService {
      *
      * @return True if the guild is in standalone worker mode
      */
-    boolean isStandalone(String id);
+    Boolean isStandalone(String id);
 
     /**
      * Sends a giveaway to the worker with the lowest load
