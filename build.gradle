@@ -48,7 +48,7 @@ dependencies {
 
     implementation 'net.dv8tion:JDA:4.1.1_143'
     implementation 'com.mrkirby153:bot-core:2.1-SNAPSHOT'
-    implementation 'me.mrkirby153:KirbyUtils-Common:3.2-SNAPSHOT'
+    implementation 'me.mrkirby153:KirbyUtils-Common:3.3'
     implementation 'com.google.guava:guava:29.0-jre'
     implementation 'org.json:json:20190722'
     implementation 'io.jsonwebtoken:jjwt:0.9.1'
