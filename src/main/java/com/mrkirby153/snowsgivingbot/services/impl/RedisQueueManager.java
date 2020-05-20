@@ -150,6 +150,7 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
         if (task != null) {
             log.debug("Unassigning {} from {}", giveaway, task.getId());
             task.unassignGiveaway(giveaway);
+            assignedGiveaways.remove(giveaway);
         }
     }
 

@@ -25,6 +25,7 @@ import net.dv8tion.jda.api.events.message.MessageDeleteEvent;
 import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.TaskScheduler;
@@ -82,7 +83,7 @@ public class GiveawayManager implements GiveawayService {
         ApplicationEventPublisher aep,
         TaskExecutor taskExecutor, StandaloneWorkerService sws, RedisQueueService rqs,
         TaskScheduler taskScheduler,
-        GiveawayBackfillService backfillService) {
+        @Lazy GiveawayBackfillService backfillService) {
         this.jda = jda;
         this.entrantRepository = entrantRepository;
         this.giveawayRepository = giveawayRepository;

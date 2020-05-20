@@ -39,7 +39,7 @@ public class HelpCommand {
         desc.append(prefix)
             .append("winners <message id> - Displays the winners of the provided giveaway\n");
         desc.append(prefix)
-            .append("winners set <message id> <winners> - Sets the winners for the giveaway\n");
+            .append("winners set <message id> <winner count> - Sets the amount of winners for a giveaway\n");
         desc.append(prefix)
             .append("export - Exports a CSV of all the giveaways ran in this server\n");
         desc.append("\n");
