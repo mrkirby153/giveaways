@@ -16,8 +16,8 @@ import com.mrkirby153.snowsgivingbot.services.backfill.GiveawayBackfillService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
-import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.sharding.ShardManager;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -34,7 +34,7 @@ public class AdminCommands {
     private final GiveawayRepository giveawayRepository;
     private final RedisQueueService redisQueueService;
     private final StandaloneWorkerService standaloneWorkerService;
-    private final JDA jda;
+    private final ShardManager shardManager;
     private final RedisTemplate<String, String> template;
 
     @Command(name = "ping", clearance = 100)
@@ -151,7 +151,7 @@ public class AdminCommands {
     @Command(name = "get", clearance = 101, arguments = {"<guild:string>"}, parent = "standalone")
     public void getStandalone(Context context, CommandContext commandContext) {
         String guild = commandContext.getNotNull("guild");
-        Guild g = jda.getGuildById(guild);
+        Guild g = shardManager.getGuildById(guild);
         if (g == null) {
             throw new CommandException("Guild not found!");
         }
@@ -168,7 +168,7 @@ public class AdminCommands {
     public void setStandalone(Context context, CommandContext commandContext) {
         String guild = commandContext.getNotNull("guild");
         boolean standalone = commandContext.getNotNull("enable");
-        Guild g = jda.getGuildById(guild);
+        Guild g = shardManager.getGuildById(guild);
         if (g == null) {
             throw new CommandException("Guild not found!");
         }

@@ -5,15 +5,15 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayRoleEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRoleRepository;
+import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import com.mrkirby153.snowsgivingbot.services.PermissionService;
 import lombok.extern.slf4j.Slf4j;
-import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
-import net.dv8tion.jda.api.events.ReadyEvent;
 import net.dv8tion.jda.api.events.role.RoleDeleteEvent;
+import net.dv8tion.jda.api.sharding.ShardManager;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class PermissionManager implements PermissionService {
 
-    private final JDA jda;
+    private final ShardManager shardManager;
     private final GiveawayRoleRepository repo;
 
     private LoadingCache<String, List<GiveawayRoleEntity>> roleCache = CacheBuilder.newBuilder()
@@ -41,8 +41,8 @@ public class PermissionManager implements PermissionService {
                 }
             });
 
-    public PermissionManager(JDA jda, GiveawayRoleRepository repo) {
-        this.jda = jda;
+    public PermissionManager(ShardManager shardManager, GiveawayRoleRepository repo) {
+        this.shardManager = shardManager;
         this.repo = repo;
     }
 
@@ -88,12 +88,13 @@ public class PermissionManager implements PermissionService {
     @Override
     @Transactional
     public void refreshGiveawayRoles() {
-        jda.getGuilds().forEach(guild -> {
+        shardManager.getGuilds().forEach(guild -> {
             log.debug("Refreshing giveaway roles on {}", guild);
             List<String> roles = guild.getRoles().stream().map(Role::getId).collect(
                 Collectors.toList());
             repo.removeAllByRoleIdNotInAndGuildId(roles, guild.getId());
         });
+        // TODO: 5/20/20 Remove roles from guilds that we left
     }
 
     @Override
@@ -114,7 +115,7 @@ public class PermissionManager implements PermissionService {
 
     @EventListener
     @Transactional
-    public void onReady(ReadyEvent event) {
+    public void onReady(AllShardsReadyEvent event) {
         refreshGiveawayRoles();
     }
 }

@@ -15,7 +15,6 @@ import com.mrkirby153.snowsgivingbot.services.backfill.GiveawayBackfillService;
 import com.mrkirby153.snowsgivingbot.utils.GiveawayEmbedUtils;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
-import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Emote;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.MessageReaction.ReactionEmote;
@@ -23,6 +22,7 @@ import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.events.message.MessageDeleteEvent;
 import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
+import net.dv8tion.jda.api.sharding.ShardManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
@@ -54,7 +54,7 @@ public class GiveawayManager implements GiveawayService {
 
     private static final String TADA = "\uD83C\uDF89";
 
-    private final JDA jda;
+    private final ShardManager shardManager;
     private final EntrantRepository entrantRepository;
     private final GiveawayRepository giveawayRepository;
     private final DiscordService discordService;
@@ -77,7 +77,7 @@ public class GiveawayManager implements GiveawayService {
 
     private final List<Long> endingGiveaways = new CopyOnWriteArrayList<>();
 
-    public GiveawayManager(JDA jda, EntrantRepository entrantRepository,
+    public GiveawayManager(ShardManager shardManager, EntrantRepository entrantRepository,
         GiveawayRepository giveawayRepository,
         DiscordService discordService,
         @Value("${bot.reaction:\uD83C\uDF89}") String emote,
@@ -85,7 +85,7 @@ public class GiveawayManager implements GiveawayService {
         TaskExecutor taskExecutor, StandaloneWorkerService sws, RedisQueueService rqs,
         TaskScheduler taskScheduler,
         @Lazy GiveawayBackfillService backfillService) {
-        this.jda = jda;
+        this.shardManager = shardManager;
         this.entrantRepository = entrantRepository;
         this.giveawayRepository = giveawayRepository;
         this.discordService = discordService;
@@ -143,7 +143,7 @@ public class GiveawayManager implements GiveawayService {
     public void deleteGiveaway(String messageId) {
         GiveawayEntity entity = giveawayRepository.findByMessageId(messageId)
             .orElseThrow(() -> new IllegalArgumentException("Giveaway not found"));
-        TextChannel c = jda.getTextChannelById(entity.getChannelId());
+        TextChannel c = shardManager.getTextChannelById(entity.getChannelId());
         if (c != null) {
             c.deleteMessageById(entity.getMessageId()).queue();
         }
@@ -222,7 +222,7 @@ public class GiveawayManager implements GiveawayService {
         if (!custom) {
             return null;
         }
-        return jda.getEmoteById(this.emoteId);
+        return shardManager.getEmoteById(this.emoteId);
     }
 
     @Override
@@ -235,7 +235,7 @@ public class GiveawayManager implements GiveawayService {
 
     @Override
     public void update(GiveawayEntity entity) {
-        Guild g = jda.getGuildById(entity.getGuildId());
+        Guild g = shardManager.getGuildById(entity.getGuildId());
         if (g == null) {
             return;
         }
@@ -285,7 +285,7 @@ public class GiveawayManager implements GiveawayService {
     private void updateMultipleGiveaways(List<GiveawayEntity> activeGiveaways) {
         activeGiveaways.forEach(g -> {
             log.debug("Updating {}", g);
-            TextChannel c = jda.getTextChannelById(g.getChannelId());
+            TextChannel c = shardManager.getTextChannelById(g.getChannelId());
             if (c != null) {
                 c.retrieveMessageById(g.getMessageId()).queue(m -> {
                     m.editMessage(GiveawayEmbedUtils.renderMessage(g)).queue();
@@ -319,7 +319,7 @@ public class GiveawayManager implements GiveawayService {
         taskExecutor.execute(() -> {
             giveaway.setState(GiveawayState.ENDING);
             giveawayRepository.save(giveaway);
-            TextChannel channel = jda.getTextChannelById(giveaway.getChannelId());
+            TextChannel channel = shardManager.getTextChannelById(giveaway.getChannelId());
             if (channel != null) {
                 channel.retrieveMessageById(giveaway.getMessageId())
                     .queue(

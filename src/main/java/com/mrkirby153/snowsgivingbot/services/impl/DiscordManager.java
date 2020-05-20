@@ -3,12 +3,12 @@ package com.mrkirby153.snowsgivingbot.services.impl;
 import com.mrkirby153.snowsgivingbot.services.DiscordService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Emote;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageChannel;
 import net.dv8tion.jda.api.entities.TextChannel;
+import net.dv8tion.jda.api.sharding.ShardManager;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -29,17 +29,15 @@ public class DiscordManager implements DiscordService {
         "https?://(canary\\.|ptb\\.)?discordapp.com/channels/(\\d{17,18})/(\\d{17,18})/(\\d{17,18})");
     private static final HashMap<String, String> messageChannelCache = new HashMap<>();
 
-    private final JDA jda;
+    private final ShardManager shardManager;
 
 
     @Override
     public Emote findEmoteById(String id) {
         log.debug("Looking for emote {}", id);
-        for (Guild guild : jda.getGuilds()) {
-            Emote emote = guild.getEmoteById(id);
-            if (emote != null) {
-                return emote;
-            }
+        Emote emote = shardManager.getEmoteById(id);
+        if (emote != null) {
+            return emote;
         }
         throw new NoSuchElementException(
             String.format("The emote with the id %s was not found", id));
@@ -56,7 +54,7 @@ public class DiscordManager implements DiscordService {
         String channelId = matcher.group(3);
         String messageId = matcher.group(4);
 
-        Guild guild = jda.getGuildById(guildId);
+        Guild guild = shardManager.getGuildById(guildId);
 
         if (guild == null) {
             throw new NoSuchElementException("Guild not found");

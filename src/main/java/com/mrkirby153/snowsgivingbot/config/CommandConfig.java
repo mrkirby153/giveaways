@@ -5,7 +5,7 @@ import com.mrkirby153.botcore.command.CommandExecutor.MentionMode;
 import com.mrkirby153.botcore.command.args.ArgumentParseException;
 import com.mrkirby153.snowsgivingbot.services.PermissionService;
 import lombok.extern.slf4j.Slf4j;
-import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.sharding.ShardManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,8 +34,8 @@ public class CommandConfig {
     }
 
     @Bean
-    public CommandExecutor commandExecutor(JDA jda) {
-        CommandExecutor ex = new CommandExecutor(prefix, MentionMode.OPTIONAL, jda, null);
+    public CommandExecutor commandExecutor(ShardManager shardManager) {
+        CommandExecutor ex = new CommandExecutor(prefix, MentionMode.OPTIONAL, null, shardManager);
         ex.setAlertNoClearance(false);
         ex.setAlertUnknownCommand(false);
         ex.setClearanceResolver(member -> {

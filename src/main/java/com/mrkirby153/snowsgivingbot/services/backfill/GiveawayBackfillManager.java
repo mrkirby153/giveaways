@@ -4,11 +4,11 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
+import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.dv8tion.jda.api.JDA;
-import net.dv8tion.jda.api.events.ReadyEvent;
+import net.dv8tion.jda.api.sharding.ShardManager;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
@@ -41,11 +41,12 @@ public class GiveawayBackfillManager implements GiveawayBackfillService {
 
     private final GiveawayService giveawayService;
     private final GiveawayRepository giveawayRepository;
-    private final JDA jda;
+    private final ShardManager shardManager;
 
     @Override
     public BackfillTask startBackfill(GiveawayEntity giveaway) {
-        BackfillTask task = new BackfillTask(id.getAndIncrement(), jda, giveawayService, this,
+        BackfillTask task = new BackfillTask(id.getAndIncrement(), shardManager, giveawayService,
+            this,
             giveaway,
             giveawayService.getGiveawayEmoji(), giveawayService.getGiveawayEmote());
         CompletableFuture<Long> future = CompletableFuture.supplyAsync(() -> {
@@ -105,7 +106,7 @@ public class GiveawayBackfillManager implements GiveawayBackfillService {
     }
 
     @EventListener
-    public void onReady(ReadyEvent event) {
+    public void onReady(AllShardsReadyEvent event) {
         // Queue all running giveaways for backfill
         List<GiveawayEntity> runningGiveaways = giveawayRepository
             .findAllByState(GiveawayState.RUNNING);

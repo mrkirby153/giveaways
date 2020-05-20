@@ -8,12 +8,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
-import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Emote;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.requests.restaction.pagination.ReactionPaginationAction;
+import net.dv8tion.jda.api.sharding.ShardManager;
 
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -29,7 +29,7 @@ public class BackfillTask {
 
     @Getter
     private final long id;
-    private final JDA jda;
+    private final ShardManager shardManager;
     private final GiveawayService giveawayService;
     private final GiveawayBackfillService backfillService;
     private final GiveawayEntity giveaway;
@@ -56,7 +56,7 @@ public class BackfillTask {
         if (initialized) {
             return;
         }
-        guild = jda.getGuildById(giveaway.getGuildId());
+        guild = shardManager.getGuildById(giveaway.getGuildId());
         if (guild == null) {
             log.error("Error backfilling giveaway {}: Guild not found", giveaway.getId());
             errored = true;

@@ -10,8 +10,8 @@ import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.web.DiscordUser;
 import com.mrkirby153.snowsgivingbot.web.dto.GiveawayDto;
 import lombok.AllArgsConstructor;
-import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.TextChannel;
+import net.dv8tion.jda.api.sharding.ShardManager;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -23,16 +23,16 @@ import java.util.concurrent.ExecutionException;
 @AllArgsConstructor
 public class WebGiveawayService {
 
-    private GiveawayRepository giveawayRepository;
-    private EntrantRepository entrantRepository;
-    private JDA jda;
+    private final GiveawayRepository giveawayRepository;
+    private final EntrantRepository entrantRepository;
+    private final ShardManager shardManager;
 
     private final LoadingCache<String, String> channelNameCache = CacheBuilder.newBuilder()
         .maximumSize(1000).build(
             new CacheLoader<String, String>() {
                 @Override
                 public String load(String key) throws Exception {
-                    TextChannel chan = jda.getTextChannelById(key);
+                    TextChannel chan = shardManager.getTextChannelById(key);
                     if (chan == null) {
                         throw new IllegalStateException("Channel " + key + " was not found!");
                     }

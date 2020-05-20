@@ -1,10 +1,10 @@
 package com.mrkirby153.snowsgivingbot.commands;
 
 import com.mrkirby153.botcore.command.CommandExecutor;
+import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.events.message.guild.GuildMessageReceivedEvent;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -29,7 +29,7 @@ public class CommandManager {
     private final ApplicationContext context;
 
     @EventListener
-    public void onReady(ApplicationReadyEvent event) {
+    public void onReady(AllShardsReadyEvent event) {
         log.info("Registering {} command classes", commands.size());
         commands.forEach(clazz -> {
             log.debug("Registering {}", clazz);
