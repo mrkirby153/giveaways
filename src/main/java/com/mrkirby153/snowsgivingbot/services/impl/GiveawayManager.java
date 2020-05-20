@@ -37,6 +37,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -113,7 +114,14 @@ public class GiveawayManager implements GiveawayService {
         GiveawayEntity entity = new GiveawayEntity();
         entity.setName(name);
         entity.setWinners(winners);
-        entity.setEndsAt(new Timestamp(System.currentTimeMillis() + Time.INSTANCE.parse(endsIn)));
+        Timestamp endsAt = new Timestamp(System.currentTimeMillis() + Time.INSTANCE.parse(endsIn));
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(endsAt.getTime());
+        if (cal.get(Calendar.YEAR) >= 2038) {
+            throw new IllegalArgumentException(
+                "Can't start a giveaway that ends that far in the future!");
+        }
+        entity.setEndsAt(endsAt);
         entity.setChannelId(channel.getId());
         entity.setSecret(secret);
         entity.setGuildId(channel.getGuild().getId());
@@ -319,8 +327,8 @@ public class GiveawayManager implements GiveawayService {
             }
 
             long queueSize = 0;
-            while(backfillService.isBackfilling(giveaway)) {
-                try{
+            while (backfillService.isBackfilling(giveaway)) {
+                try {
                     log.debug("Giveaway {} is being backfilled.", giveaway.getId());
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
