@@ -38,4 +38,13 @@ public interface GiveawayBackfillService {
      * @param task The task
      */
     void unregisterTask(BackfillTask task);
+
+    /**
+     * Checks if the giveaway is currently being backfilled
+     *
+     * @param giveawayEntity The entity to check
+     *
+     * @return True if the giveaway is currently being backfilled
+     */
+    boolean isBackfilling(GiveawayEntity giveawayEntity);
 }

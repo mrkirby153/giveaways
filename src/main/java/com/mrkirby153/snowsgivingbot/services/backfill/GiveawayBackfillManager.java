@@ -80,6 +80,11 @@ public class GiveawayBackfillManager implements GiveawayBackfillService {
         runningGiveaways.remove(task.getGiveawayId());
     }
 
+    @Override
+    public boolean isBackfilling(GiveawayEntity giveawayEntity) {
+        return getRunningGiveawayIDs().contains(giveawayEntity.getId());
+    }
+
     private void runNextQueuedTask() {
         log.debug("Running next backfill task");
         Iterator<Long> iter = pendingBackfills.iterator();

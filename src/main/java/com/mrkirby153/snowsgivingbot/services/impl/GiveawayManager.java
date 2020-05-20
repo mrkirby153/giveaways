@@ -11,6 +11,7 @@ import com.mrkirby153.snowsgivingbot.services.DiscordService;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService;
 import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
 import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
+import com.mrkirby153.snowsgivingbot.services.backfill.GiveawayBackfillService;
 import com.mrkirby153.snowsgivingbot.utils.GiveawayEmbedUtils;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
@@ -60,6 +61,7 @@ public class GiveawayManager implements GiveawayService {
     private final ApplicationEventPublisher publisher;
     private final TaskExecutor taskExecutor;
     private final TaskScheduler taskScheduler;
+    private final GiveawayBackfillService backfillService;
 
     private final Object giveawayLock = new Object();
 
@@ -79,7 +81,8 @@ public class GiveawayManager implements GiveawayService {
         @Value("${bot.reaction:\uD83C\uDF89}") String emote,
         ApplicationEventPublisher aep,
         TaskExecutor taskExecutor, StandaloneWorkerService sws, RedisQueueService rqs,
-        TaskScheduler taskScheduler) {
+        TaskScheduler taskScheduler,
+        GiveawayBackfillService backfillService) {
         this.jda = jda;
         this.entrantRepository = entrantRepository;
         this.giveawayRepository = giveawayRepository;
@@ -89,6 +92,7 @@ public class GiveawayManager implements GiveawayService {
         this.sws = sws;
         this.rqs = rqs;
         this.taskScheduler = taskScheduler;
+        this.backfillService = backfillService;
 
         if (emote.matches("\\d{17,18}")) {
             emoji = null;
@@ -314,12 +318,20 @@ public class GiveawayManager implements GiveawayService {
             }
 
             long queueSize = 0;
+            while(backfillService.isBackfilling(giveaway)) {
+                try{
+                    log.debug("Giveaway {} is being backfilled.", giveaway.getId());
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    // Ignore
+                }
+            }
             while ((queueSize = rqs.queueSize(giveaway.getId())) > 0) {
                 try {
                     log.debug("Giveaway {} has a queue size of {}", giveaway.getId(), queueSize);
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    // Ignore
                 }
             }
 
