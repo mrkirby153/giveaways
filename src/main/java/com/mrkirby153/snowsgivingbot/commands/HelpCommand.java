@@ -34,12 +34,14 @@ public class HelpCommand {
         StringBuilder desc = new StringBuilder();
         desc.append("**Commands**\n");
         desc.append(prefix).append(
-            "start <duration> [winners] <prize> - Starts a giveaway in the current channel\n");
+            "start <duration> [winners] <prize> - Starts a giveaway in the current channel. (Example: `")
+            .append(prefix).append("start 30m 2w Cool steam key").append("`)\n");
         desc.append(prefix).append("end <message id> - Ends the giveaway with the message id\n");
         desc.append(prefix)
             .append("winners <message id> - Displays the winners of the provided giveaway\n");
         desc.append(prefix)
-            .append("winners set <message id> <winner count> - Sets the amount of winners for a giveaway\n");
+            .append(
+                "winners set <message id> <winner count> - Sets the amount of winners for a giveaway\n");
         desc.append(prefix)
             .append("export - Exports a CSV of all the giveaways ran in this server\n");
         desc.append("\n");
