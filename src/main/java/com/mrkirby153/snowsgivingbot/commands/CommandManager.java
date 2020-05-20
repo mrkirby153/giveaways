@@ -23,6 +23,7 @@ public class CommandManager {
         commands.add(GiveawayCommands.class);
         commands.add(AdminCommands.class);
         commands.add(HelpCommand.class);
+        commands.add(InfoCommand.class);
     }
 
     private final CommandExecutor executor;
