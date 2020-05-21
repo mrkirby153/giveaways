@@ -15,6 +15,7 @@ import com.mrkirby153.snowsgivingbot.services.backfill.GiveawayBackfillService;
 import com.mrkirby153.snowsgivingbot.utils.GiveawayEmbedUtils;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
+import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Emote;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.MessageReaction.ReactionEmote;
@@ -287,9 +288,13 @@ public class GiveawayManager implements GiveawayService {
             log.debug("Updating {}", g);
             TextChannel c = shardManager.getTextChannelById(g.getChannelId());
             if (c != null) {
-                c.retrieveMessageById(g.getMessageId()).queue(m -> {
-                    m.editMessage(GiveawayEmbedUtils.renderMessage(g)).queue();
-                });
+                // Check if we have permission to update the giveaway
+                if (c.getGuild().getSelfMember()
+                    .hasPermission(c, Permission.MESSAGE_WRITE, Permission.MESSAGE_READ)) {
+                    c.retrieveMessageById(g.getMessageId()).queue(m -> {
+                        m.editMessage(GiveawayEmbedUtils.renderMessage(g)).queue();
+                    });
+                }
             }
         });
     }
@@ -320,10 +325,12 @@ public class GiveawayManager implements GiveawayService {
             giveaway.setState(GiveawayState.ENDING);
             giveawayRepository.save(giveaway);
             TextChannel channel = shardManager.getTextChannelById(giveaway.getChannelId());
-            if (channel != null) {
+            if (channel != null && channel.getGuild().getSelfMember()
+                .hasPermission(channel, Permission.MESSAGE_READ, Permission.MESSAGE_WRITE)) {
                 channel.retrieveMessageById(giveaway.getMessageId())
                     .queue(
-                        msg -> msg.editMessage(GiveawayEmbedUtils.renderMessage(giveaway)).queue());
+                        msg -> msg.editMessage(GiveawayEmbedUtils.renderMessage(giveaway))
+                            .queue());
             }
 
             long queueSize = 0;
@@ -349,7 +356,8 @@ public class GiveawayManager implements GiveawayService {
             String winnersAsMention = winners.stream().map(id -> "<@!" + id + ">")
                 .collect(Collectors.joining(" "));
             try {
-                if (channel != null) {
+                if (channel != null && channel.getGuild().getSelfMember()
+                    .hasPermission(channel, Permission.MESSAGE_READ, Permission.MESSAGE_WRITE)) {
                     if (winners.size() == 0) {
                         // Could not determine a winner
                         channel.sendMessage("\uD83D\uDEA8 Could not determine a winner!").queue();

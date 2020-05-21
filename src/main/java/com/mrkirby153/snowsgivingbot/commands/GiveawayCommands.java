@@ -14,6 +14,7 @@ import com.mrkirby153.snowsgivingbot.services.GiveawayService;
 import com.mrkirby153.snowsgivingbot.services.PermissionService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.TextChannel;
 import org.springframework.stereotype.Component;
@@ -53,6 +54,12 @@ public class GiveawayCommands {
         String time = cmdContext.getNotNull("time");
         String prizeStr = cmdContext.getNotNull("prize");
         int winners = 1;
+        if (!context.getGuild().getSelfMember()
+            .hasPermission(context.getTextChannel(), Permission.MESSAGE_ADD_REACTION,
+                Permission.MESSAGE_EMBED_LINKS)) {
+            throw new CommandException(
+                "I can't start a giveaway here due to missing permissions. Ensure that I have permission to add reactions and embed links!");
+        }
         String[] parts = prizeStr.split(" ");
         if (parts.length >= 2) {
             String winnersQuestion = parts[0];
