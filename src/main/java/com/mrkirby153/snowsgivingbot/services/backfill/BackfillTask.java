@@ -78,8 +78,14 @@ public class BackfillTask {
     public void process() {
         long startTime = System.currentTimeMillis();
         try {
-            log.info("Starting backfill of {}", giveaway.getId());
+            log.debug("Starting backfill of {}", giveaway.getId());
             initialize();
+            if(errored) {
+                timeTaken = System.currentTimeMillis() - startTime;
+                // TODO: 5/21/20 Probably should end the giveaway so it's not backfilled again
+                future.complete(0L);
+                return;
+            }
             ReactionPaginationAction action;
             if (this.asciiEmote != null) {
                 action = message.retrieveReactionUsers(this.asciiEmote);
@@ -108,7 +114,7 @@ public class BackfillTask {
                 }
             });
             timeTaken = System.currentTimeMillis() - startTime;
-            log.info("Backfill of {} complete! Processed {} users. Took {}", giveaway.getId(),
+            log.debug("Backfill of {} complete! Processed {} users. Took {}", giveaway.getId(),
                 getProcessed(),
                 Time.INSTANCE.format(1, timeTaken));
         } catch (Exception e) {

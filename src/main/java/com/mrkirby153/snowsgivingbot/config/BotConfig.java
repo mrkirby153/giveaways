@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDA.Status;
+import net.dv8tion.jda.api.OnlineStatus;
 import net.dv8tion.jda.api.events.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.GatewayIntent;
@@ -54,7 +55,8 @@ public class BotConfig {
                 GatewayIntent.GUILD_EMOJIS).setMemberCachePolicy(MemberCachePolicy.NONE)
             .disableCache(
                 CacheFlag.ACTIVITY, CacheFlag.VOICE_STATE, CacheFlag.CLIENT_STATUS)
-            .addEventListeners(springJdaShim);
+            .addEventListeners(springJdaShim)
+            .setStatus(OnlineStatus.DO_NOT_DISTURB);
         ShardManager shardManager = shardBuilder.build();
         shardManager.addEventListener(new ReadyListener(shardManager));
         return shardManager;
@@ -85,12 +87,13 @@ public class BotConfig {
                 log.info("All shards have connected");
                 log.info("On {} guilds", shardManager.getGuilds().size());
                 shardManager.removeEventListener(this);
+                shardManager.setStatus(OnlineStatus.ONLINE);
                 if (event.getJDA().getShardInfo().getShardTotal() == 1) {
                     // We need to delay ready for 250ms for some reason
                     // TODO: 5/20/20 Investigate this
                     taskScheduler
                         .schedule(() -> eventPublisher.publishEvent(new AllShardsReadyEvent()),
-                            Instant.now().plusMillis(250));
+                            Instant.now().plusMillis(500));
                 } else {
                     eventPublisher.publishEvent(new AllShardsReadyEvent());
                 }

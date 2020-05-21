@@ -87,6 +87,7 @@ public class GiveawayBackfillManager implements GiveawayBackfillService {
     }
 
     private void runNextQueuedTask() {
+        log.info("{} pending backfills remaining", pendingBackfills.size());
         log.debug("Running next backfill task");
         Iterator<Long> iter = pendingBackfills.iterator();
         if (iter.hasNext()) {

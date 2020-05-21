@@ -5,6 +5,7 @@ import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntrantEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
+import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import com.mrkirby153.snowsgivingbot.event.GiveawayEndedEvent;
 import com.mrkirby153.snowsgivingbot.event.GiveawayStartedEvent;
 import com.mrkirby153.snowsgivingbot.services.DiscordService;
@@ -77,6 +78,8 @@ public class GiveawayManager implements GiveawayService {
     private final String emoteId;
 
     private final List<Long> endingGiveaways = new CopyOnWriteArrayList<>();
+
+    private boolean isReady = false;
 
     public GiveawayManager(ShardManager shardManager, EntrantRepository entrantRepository,
         GiveawayRepository giveawayRepository,
@@ -253,13 +256,15 @@ public class GiveawayManager implements GiveawayService {
         synchronized (giveawayLock) {
             List<GiveawayEntity> giveaways = giveawayRepository
                 .findAllByEndsAtBeforeAndStateIs(before, GiveawayState.RUNNING);
-            updateMultipleGiveaways(giveaways);
+            updateMultipleGiveaways(giveaways, false);
         }
     }
 
     @Scheduled(fixedDelay = 1000L) // 1 Second
     public void updateGiveaways() {
-        // TODO: 5/18/20 We should spread this across over the course of a minute. Should be able to mod 60 the giveaway id
+        if (!isReady) {
+            return;
+        }
         updateEndedGiveaways();
         long count = counter.getAndIncrement();
         Instant now = Instant.now();
@@ -277,26 +282,45 @@ public class GiveawayManager implements GiveawayService {
 
     @Scheduled(fixedDelay = 120000L) // 2 minutes
     public void updateAllGiveaways() {
+        if (!isReady) {
+            return;
+        }
         log.debug("Updating all giveaways");
         List<GiveawayEntity> activeGiveaways = giveawayRepository
             .findAllByState(GiveawayState.RUNNING);
-        updateMultipleGiveaways(activeGiveaways);
+        updateMultipleGiveaways(activeGiveaways, true);
     }
 
-    private void updateMultipleGiveaways(List<GiveawayEntity> activeGiveaways) {
-        activeGiveaways.forEach(g -> {
-            log.debug("Updating {}", g);
-            TextChannel c = shardManager.getTextChannelById(g.getChannelId());
-            if (c != null) {
-                // Check if we have permission to update the giveaway
-                if (c.getGuild().getSelfMember()
-                    .hasPermission(c, Permission.MESSAGE_WRITE, Permission.MESSAGE_READ)) {
-                    c.retrieveMessageById(g.getMessageId()).queue(m -> {
-                        m.editMessage(GiveawayEmbedUtils.renderMessage(g)).queue();
-                    });
-                }
+    private void updateMultipleGiveaways(List<GiveawayEntity> activeGiveaways, boolean schedule) {
+        if (!schedule) {
+            activeGiveaways.forEach(this::doUpdate);
+        } else {
+            log.debug("Queueing giveaway updates over the next 60 seconds");
+            Map<Long, List<GiveawayEntity>> bucketed = new HashMap<>();
+            activeGiveaways.forEach(g -> {
+                long second = g.getId() % 60;
+                bucketed.computeIfAbsent(second, l -> new ArrayList<>()).add(g);
+            });
+            bucketed.forEach((key, value) -> {
+                log.debug(" - {}: {} giveaways", key, value.size());
+                taskScheduler.schedule(() -> value.forEach(this::doUpdate),
+                    Instant.now().plusSeconds(key));
+            });
+        }
+    }
+
+    private void doUpdate(GiveawayEntity entity) {
+        log.debug("Updating {}", entity);
+        TextChannel c = shardManager.getTextChannelById(entity.getChannelId());
+        if (c != null) {
+            // Check if we have permission to update the giveaway
+            if (c.getGuild().getSelfMember()
+                .hasPermission(c, Permission.MESSAGE_WRITE, Permission.MESSAGE_READ)) {
+                c.retrieveMessageById(entity.getMessageId()).queue(m -> {
+                    m.editMessage(GiveawayEmbedUtils.renderMessage(entity)).queue();
+                });
             }
-        });
+        }
     }
 
     private void updateEndedGiveaways() {
@@ -461,5 +485,11 @@ public class GiveawayManager implements GiveawayService {
     @Transactional
     public void onMessageDelete(MessageDeleteEvent event) {
         giveawayRepository.deleteAllByMessageId(event.getMessageId());
+    }
+
+    @EventListener
+    public void onReady(AllShardsReadyEvent event) {
+        log.debug("Bot is ready");
+        isReady = true;
     }
 }
