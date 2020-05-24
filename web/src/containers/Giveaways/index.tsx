@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {RouteComponentProps} from 'react-router-dom';
 import {axios, loggedIn} from "../../utils";
-import {Giveaway as GiveawayType, GiveawayState, Guild} from "../../types";
+import {Giveaway as GiveawayType, Giveaways as GiveawaysType, Guild} from "../../types";
 import Giveaway from "./Giveaway";
 import moment from 'moment';
 import './index.scss';
@@ -18,7 +18,7 @@ const Giveaways: React.FC<MyProps> = (props) => {
 
   const serverId = props.match.params.server;
 
-  const [giveaways, setGiveaways] = useState<GiveawayType[]>([])
+  const [giveaways, setGiveaways] = useState<GiveawaysType>({active: [], inactive: []})
   const [guild, setGuild] = useState<Guild>({
     id: '',
     name: 'Loading',
@@ -41,12 +41,12 @@ const Giveaways: React.FC<MyProps> = (props) => {
   useEffect(getGiveaways, []);
   useEffect(getGuild, []);
 
-  const activeGiveawayElements = giveaways.filter(e => e.state === GiveawayState.RUNNING).map(giveaway => {
+  const activeGiveawayElements = giveaways.active.map(giveaway => {
     return <Giveaway key={giveaway.id} {...giveaway}/>
   });
 
 
-  const endedGiveawayElements = ld_orderBy(giveaways.filter(e => e.state !== GiveawayState.RUNNING), (o: GiveawayType) => {
+  const endedGiveawayElements = ld_orderBy(giveaways.inactive, (o: GiveawayType) => {
     return moment.utc(o.endsAt)
   }, ['desc']).map(giveaway => {
     return <Giveaway key={giveaway.id} {...giveaway}/>

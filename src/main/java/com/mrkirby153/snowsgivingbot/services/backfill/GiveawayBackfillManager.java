@@ -2,7 +2,7 @@ package com.mrkirby153.snowsgivingbot.services.backfill;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
-import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity.GiveawayState;
+import com.mrkirby153.snowsgivingbot.entity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService;

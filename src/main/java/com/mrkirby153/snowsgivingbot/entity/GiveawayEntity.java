@@ -73,12 +73,6 @@ public class GiveawayEntity {
     private String finalWinners;
 
 
-    public enum GiveawayState {
-        RUNNING,
-        ENDED,
-        ENDING
-    }
-
     @Override
     public String toString() {
         return "GiveawayEntity{" +

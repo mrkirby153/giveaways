@@ -10,6 +10,7 @@ import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.services.DiscordService;
 import com.mrkirby153.snowsgivingbot.web.DiscordUser;
 import com.mrkirby153.snowsgivingbot.web.dto.GiveawayDto;
+import com.mrkirby153.snowsgivingbot.web.dto.AllGiveawaysDto;
 import lombok.AllArgsConstructor;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -18,10 +19,14 @@ import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.sharding.ShardManager;
 import org.springframework.stereotype.Service;
 
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
@@ -45,7 +50,7 @@ public class WebGiveawayService {
                 }
             });
 
-    public List<GiveawayDto> getGiveaways(String guild, DiscordUser user) {
+    public AllGiveawaysDto getGiveaways(String guild, DiscordUser user) {
         List<String> visibleChannels = new ArrayList<>();
         Guild g = shardManager.getGuildById(guild);
         User u = shardManager.getUserById(user.getId());
@@ -60,31 +65,36 @@ public class WebGiveawayService {
             }
         }
         if (visibleChannels.size() == 0) {
-            return new ArrayList<>();
+            return new AllGiveawaysDto(new ArrayList<>(), new ArrayList<>());
         }
-        List<GiveawayEntity> giveaways = giveawayRepository
-            .getAllGiveawaysInChannel(guild, visibleChannels);
+        List<GiveawayEntity> activeGiveaways = giveawayRepository
+            .getAllActiveGiveawaysInChannel(guild, visibleChannels);
+        List<GiveawayEntity> inactiveGiveaways = giveawayRepository
+            .getExpiredGiveaways(guild, visibleChannels,
+                Timestamp.from(Instant.now().minus(3, ChronoUnit.DAYS)));
         List<GiveawayEntrantEntity> entrants = entrantRepository
             .findAllByUserInGuild(user.getId(), guild);
+        List<GiveawayDto> activeDtos = activeGiveaways.stream()
+            .map(entity -> buildDto(entity, entrants)).collect(
+                Collectors.toList());
+        List<GiveawayDto> inactiveDtos = inactiveGiveaways.stream()
+            .map(entity -> buildDto(entity, entrants)).collect(
+                Collectors.toList());
+        return new AllGiveawaysDto(activeDtos, inactiveDtos);
+    }
 
-        List<GiveawayDto> giveawayDtos = new ArrayList<>();
-        giveaways.forEach(giveaway -> {
-            Optional<GiveawayEntrantEntity> entrant = entrants.stream()
-                .filter(entrantEntity -> entrantEntity.getGiveaway().getId() == giveaway.getId())
-                .findFirst();
-            giveawayDtos.add(
-                new GiveawayDto(giveaway.getId(), giveaway.getName(), giveaway.getChannelId(),
-                    getChannelName(giveaway.getChannelId()),
-                    giveaway.getEndsAt(), entrant.isPresent(), giveaway.getState()));
-        });
-        return giveawayDtos;
+    private GiveawayDto buildDto(GiveawayEntity giveaway, List<GiveawayEntrantEntity> entrants) {
+        Optional<GiveawayEntrantEntity> entrant = entrants.stream()
+            .filter(e -> e.getGiveaway().getId() == giveaway.getId()).findFirst();
+        return new GiveawayDto(giveaway, getChannelName(giveaway.getChannelId()),
+            entrant.isPresent());
     }
 
     private String getChannelName(String id) {
         try {
             return channelNameCache.get(id);
         } catch (ExecutionException e) {
-            return null;
+            return "invalid-channel";
         }
     }
 }

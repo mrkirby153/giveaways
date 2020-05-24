@@ -4,7 +4,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.mrkirby153.snowsgivingbot.web.DiscordUser;
-import com.mrkirby153.snowsgivingbot.web.dto.GiveawayDto;
+import com.mrkirby153.snowsgivingbot.web.dto.AllGiveawaysDto;
 import com.mrkirby153.snowsgivingbot.web.dto.ServerDto;
 import com.mrkirby153.snowsgivingbot.web.services.WebGiveawayService;
 import lombok.AllArgsConstructor;
@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -48,7 +47,7 @@ public class GiveawayController {
             });
 
     @GetMapping("/giveaways/{server}")
-    public List<GiveawayDto> getAllGiveaways(@PathVariable(name = "server") String guild,
+    public AllGiveawaysDto getAllGiveaways(@PathVariable(name = "server") String guild,
         Authentication authentication) {
         DiscordUser user = HttpUtils.getUser(authentication);
         return giveawayService.getGiveaways(guild, user);

@@ -23,3 +23,8 @@ export interface Guild {
   name: string,
   icon: string | null
 }
+
+export interface Giveaways {
+  active: Giveaway[]
+  inactive: Giveaway[]
+}

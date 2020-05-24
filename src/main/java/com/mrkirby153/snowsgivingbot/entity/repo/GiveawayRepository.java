@@ -1,7 +1,7 @@
 package com.mrkirby153.snowsgivingbot.entity.repo;
 
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
-import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity.GiveawayState;
+import com.mrkirby153.snowsgivingbot.entity.GiveawayState;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 
@@ -23,6 +23,9 @@ public interface GiveawayRepository extends CrudRepository<GiveawayEntity, Long>
 
     List<GiveawayEntity> findAllByGuildId(String guild);
 
-    @Query("SELECT e FROM GiveawayEntity e WHERE e.guildId = (:guild) AND e.channelId IN (:channels) ORDER BY e.endsAt ASC")
-    List<GiveawayEntity> getAllGiveawaysInChannel(String guild, List<String> channels);
+    @Query("SELECT e FROM GiveawayEntity e WHERE e.guildId = (:guild) AND e.channelId IN (:channels) AND e.state = com.mrkirby153.snowsgivingbot.entity.GiveawayState.RUNNING ORDER BY e.endsAt ASC")
+    List<GiveawayEntity> getAllActiveGiveawaysInChannel(String guild, List<String> channels);
+
+    @Query("SELECT e FROM GiveawayEntity e WHERE e.guildId = (:guild) AND e.channelId IN (:channels) AND e.state = com.mrkirby153.snowsgivingbot.entity.GiveawayState.ENDED AND e.endsAt > (:after) ORDER BY e.endsAt DESC")
+    List<GiveawayEntity> getExpiredGiveaways(String guild, List<String> channels, Timestamp after);
 }

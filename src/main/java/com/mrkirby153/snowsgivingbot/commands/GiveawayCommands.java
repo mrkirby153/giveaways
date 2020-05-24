@@ -5,7 +5,7 @@ import com.mrkirby153.botcore.command.CommandException;
 import com.mrkirby153.botcore.command.Context;
 import com.mrkirby153.botcore.command.args.CommandContext;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
-import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity.GiveawayState;
+import com.mrkirby153.snowsgivingbot.entity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntrantEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayRoleEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
