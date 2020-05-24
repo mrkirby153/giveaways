@@ -6,6 +6,7 @@ import Giveaway from "./Giveaway";
 import moment from 'moment';
 import './index.scss';
 import LoginButton from "../Login/LoginButton";
+import ld_orderBy from 'lodash/orderBy';
 
 interface MatchProps {
   server: string
@@ -40,15 +41,14 @@ const Giveaways: React.FC<MyProps> = (props) => {
   useEffect(getGiveaways, []);
   useEffect(getGuild, []);
 
-  const activeGiveawayElements = giveaways.filter(e => e.state === GiveawayState.RUNNING).sort((left, right) => {
-    return moment.utc(right.endsAt).diff(moment.utc(left.endsAt));
-  }).map(giveaway => {
+  const activeGiveawayElements = giveaways.filter(e => e.state === GiveawayState.RUNNING).map(giveaway => {
     return <Giveaway key={giveaway.id} {...giveaway}/>
   });
 
-  const endedGiveawayElements = giveaways.filter(e => e.state !== GiveawayState.RUNNING).sort((left, right) => {
-    return moment.utc(right.endsAt).diff(moment.utc(left.endsAt));
-  }).map(giveaway => {
+
+  const endedGiveawayElements = ld_orderBy(giveaways.filter(e => e.state !== GiveawayState.RUNNING), (o: GiveawayType) => {
+    return moment.utc(o.endsAt)
+  }, ['desc']).map(giveaway => {
     return <Giveaway key={giveaway.id} {...giveaway}/>
   });
 

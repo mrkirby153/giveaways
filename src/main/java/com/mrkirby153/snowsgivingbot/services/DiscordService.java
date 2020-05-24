@@ -2,8 +2,10 @@ package com.mrkirby153.snowsgivingbot.services;
 
 import net.dv8tion.jda.api.entities.Emote;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageChannel;
+import net.dv8tion.jda.api.entities.TextChannel;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -61,4 +63,14 @@ public interface DiscordService {
      * @throws IllegalArgumentException If the message passed is invalid and cannot be sent
      */
     CompletableFuture<List<Message>> sendLongMessage(MessageChannel channel, String message);
+
+    /**
+     * Checks if a user can see the provided channel
+     *
+     * @param member      The member
+     * @param textChannel The text channel
+     *
+     * @return True if they can see the channel
+     */
+    boolean canSeeChannel(Member member, TextChannel textChannel);
 }

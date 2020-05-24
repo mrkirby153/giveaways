@@ -7,10 +7,14 @@ import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntrantEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
+import com.mrkirby153.snowsgivingbot.services.DiscordService;
 import com.mrkirby153.snowsgivingbot.web.DiscordUser;
 import com.mrkirby153.snowsgivingbot.web.dto.GiveawayDto;
 import lombok.AllArgsConstructor;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.TextChannel;
+import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.sharding.ShardManager;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +30,7 @@ public class WebGiveawayService {
     private final GiveawayRepository giveawayRepository;
     private final EntrantRepository entrantRepository;
     private final ShardManager shardManager;
+    private final DiscordService discordService;
 
     private final LoadingCache<String, String> channelNameCache = CacheBuilder.newBuilder()
         .maximumSize(1000).build(
@@ -41,7 +46,24 @@ public class WebGiveawayService {
             });
 
     public List<GiveawayDto> getGiveaways(String guild, DiscordUser user) {
-        List<GiveawayEntity> giveaways = giveawayRepository.findAllByGuildId(guild);
+        List<String> visibleChannels = new ArrayList<>();
+        Guild g = shardManager.getGuildById(guild);
+        User u = shardManager.getUserById(user.getId());
+        if (g != null && u != null) {
+            Member member = g.getMember(u);
+            if (member != null) {
+                g.getTextChannels().forEach(channel -> {
+                    if (discordService.canSeeChannel(member, channel)) {
+                        visibleChannels.add(channel.getId());
+                    }
+                });
+            }
+        }
+        if (visibleChannels.size() == 0) {
+            return new ArrayList<>();
+        }
+        List<GiveawayEntity> giveaways = giveawayRepository
+            .getAllGiveawaysInChannel(guild, visibleChannels);
         List<GiveawayEntrantEntity> entrants = entrantRepository
             .findAllByUserInGuild(user.getId(), guild);
 
