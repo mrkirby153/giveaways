@@ -65,4 +65,18 @@ public interface RedisQueueService {
      * @param giveawayEntity The giveaway entity to dequeue
      */
     void dequeue(GiveawayEntity giveawayEntity);
+
+    /**
+     * Assigns a giveaway to a worker thread
+     *
+     * @param giveawayId The giveaway id
+     */
+    void assign(long giveawayId);
+
+    /**
+     * Unassigns a giveaway from the worker threads
+     *
+     * @param giveawayId The giveaway id
+     */
+    void unassign(long giveawayId);
 }

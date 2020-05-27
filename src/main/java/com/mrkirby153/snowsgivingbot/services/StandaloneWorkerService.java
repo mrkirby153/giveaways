@@ -4,6 +4,7 @@ import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import net.dv8tion.jda.api.entities.Guild;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Service handling the coordination of giveaways running on standalone workers
@@ -18,6 +19,13 @@ public interface StandaloneWorkerService {
      * @param guild The guild to enable standalone worker mode on
      */
     void enableStandaloneWorker(Guild guild);
+
+    /**
+     * Returns a list of standalone guilds
+     *
+     * @return A list of guild ids that are standalone
+     */
+    Set<String> getStandaloneGuilds();
 
     /**
      * Removes a guild from standalone worker mode. The main bot process will begin handling the

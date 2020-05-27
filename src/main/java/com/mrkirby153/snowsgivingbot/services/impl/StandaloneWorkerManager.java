@@ -74,6 +74,7 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
         log.debug("Assigning {} giveaways to workers", giveaways.size());
         giveaways.forEach(giveaway -> {
             sendToWorker(giveaway);
+            redisQueueService.assign(giveaway.getId());
             try {
                 Thread.sleep(250);
             } catch (InterruptedException e) {
@@ -81,6 +82,11 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
             }
         });
         standaloneCache.invalidate(guild.getId());
+    }
+
+    @Override
+    public Set<String> getStandaloneGuilds() {
+        return setOperations.members(STANDALONE_KEY);
     }
 
     @Override

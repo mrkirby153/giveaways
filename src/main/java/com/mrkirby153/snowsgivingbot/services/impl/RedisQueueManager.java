@@ -2,8 +2,10 @@ package com.mrkirby153.snowsgivingbot.services.impl;
 
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntrantEntity;
+import com.mrkirby153.snowsgivingbot.entity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
+import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import com.mrkirby153.snowsgivingbot.event.GiveawayEndedEvent;
 import com.mrkirby153.snowsgivingbot.event.GiveawayStartedEvent;
 import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
@@ -15,6 +17,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SetOperations;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -197,6 +200,21 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
         updateTasks();
+    }
+
+    @EventListener
+    @Async
+    public void onReady(AllShardsReadyEvent event) {
+        // When we are ready distribute running and ending giveaways to the work queue
+        List<GiveawayEntity> runningGiveaways = giveawayRepository.findAllByState(GiveawayState.RUNNING);
+        List<GiveawayEntity> endingGiveaways = giveawayRepository.findAllByState(GiveawayState.ENDING);
+
+        Set<String> standaloneGuilds = standaloneWorkerService.getStandaloneGuilds();
+        runningGiveaways.removeIf(g -> !standaloneGuilds.contains(g.getGuildId()));
+        endingGiveaways.removeIf(g -> !standaloneGuilds.contains(g.getGuildId()));
+        log.info("Assigning {} running giveaways and {} ending giveaways to processors", runningGiveaways.size(), endingGiveaways.size());
+        runningGiveaways.forEach(g -> assign(g.getId()));
+        endingGiveaways.forEach(g -> assign(g.getId()));
     }
 
 
