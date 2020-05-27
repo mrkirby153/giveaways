@@ -12,8 +12,8 @@ import java.awt.Color;
 @Component
 public class HelpCommand {
 
-    private static final String DEFAULT_PERMISSIONS = "379968";
-    private static final String DISCORD_OAUTH_INVITE = "https://discord.com/api/oauth2/authorize?client_id=%s&permissions=%s&scope=bot";
+    public static final String DEFAULT_PERMISSIONS = "379968";
+    public static final String DISCORD_OAUTH_INVITE = "https://discord.com/api/oauth2/authorize?client_id=%s&permissions=%s&scope=bot";
 
     private final String prefix;
     private final String dashUrlFormat;

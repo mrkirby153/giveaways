@@ -1,11 +1,14 @@
 package com.mrkirby153.snowsgivingbot.web.controller;
 
+import com.mrkirby153.snowsgivingbot.commands.HelpCommand;
 import com.mrkirby153.snowsgivingbot.web.DiscordUser;
 import com.mrkirby153.snowsgivingbot.web.dto.DiscordOAuthUser;
 import com.mrkirby153.snowsgivingbot.web.dto.WebUser;
 import com.mrkirby153.snowsgivingbot.web.services.DiscordOAuthService;
 import com.mrkirby153.snowsgivingbot.web.services.JwtService;
 import lombok.extern.slf4j.Slf4j;
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.sharding.ShardManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -21,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import javax.servlet.http.HttpServletResponse;
 
 @RestController
 @RequestMapping("/api")
@@ -31,10 +35,15 @@ public class LoginController {
     private final JwtService jwtService;
     @Value("${oauth.client-id}")
     private String clientId;
+    @Value("${bot.permissions:" + HelpCommand.DEFAULT_PERMISSIONS + "}")
+    private String permissions;
+    private final ShardManager shardManager;
 
-    public LoginController(DiscordOAuthService oAuthService, JwtService jwtService) {
+    public LoginController(DiscordOAuthService oAuthService, JwtService jwtService,
+        ShardManager shardManager) {
         this.oAuthService = oAuthService;
         this.jwtService = jwtService;
+        this.shardManager = shardManager;
     }
 
 
@@ -81,5 +90,16 @@ public class LoginController {
                 }
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
             });
+    }
+
+    @GetMapping(value = "/invite", produces = {MediaType.TEXT_PLAIN_VALUE})
+    public String invite(HttpServletResponse response) {
+        JDA shard = shardManager.getShardById(0);
+        if (shard == null) {
+            throw new IllegalArgumentException("Could not redirect. Shard 0 not found");
+        }
+        return "\"" + String
+            .format(HelpCommand.DISCORD_OAUTH_INVITE, shard.getSelfUser().getId(), permissions)
+            + "\"";
     }
 }
