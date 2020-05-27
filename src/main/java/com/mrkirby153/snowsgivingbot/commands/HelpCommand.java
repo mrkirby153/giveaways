@@ -42,6 +42,7 @@ public class HelpCommand {
         desc.append(prefix)
             .append(
                 "winners set <message id> <winner count> - Sets the amount of winners for a giveaway\n");
+        desc.append(prefix).append("reroll <message id> - Picks new winners for the provided giveaway\n");
         desc.append(prefix)
             .append("export - Exports a CSV of all the giveaways ran in this server\n");
         desc.append("\n");
@@ -52,6 +53,8 @@ public class HelpCommand {
         desc.append(prefix)
             .append("role remove <role id> - Removes the provided role as a giveaway host\n");
         desc.append(prefix).append("role list - Lists roles configured as a giveaway host\n");
+        desc.append(prefix).append("help - Displays this help message\n");
+        desc.append(prefix).append("invite - Gets an invite for the bot\n");
         desc.append("\n");
         desc.append("`[ ]` indicates optional arguments, `< >` indicates required arguments\n\n");
         desc.append("Click [here](")
