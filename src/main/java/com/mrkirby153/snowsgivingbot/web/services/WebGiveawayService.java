@@ -9,13 +9,12 @@ import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.services.DiscordService;
 import com.mrkirby153.snowsgivingbot.web.DiscordUser;
-import com.mrkirby153.snowsgivingbot.web.dto.GiveawayDto;
 import com.mrkirby153.snowsgivingbot.web.dto.AllGiveawaysDto;
+import com.mrkirby153.snowsgivingbot.web.dto.GiveawayDto;
 import lombok.AllArgsConstructor;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.TextChannel;
-import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.sharding.ShardManager;
 import org.springframework.stereotype.Service;
 
@@ -53,9 +52,8 @@ public class WebGiveawayService {
     public AllGiveawaysDto getGiveaways(String guild, DiscordUser user) {
         List<String> visibleChannels = new ArrayList<>();
         Guild g = shardManager.getGuildById(guild);
-        User u = shardManager.getUserById(user.getId());
-        if (g != null && u != null) {
-            Member member = g.getMember(u);
+        if (g != null) {
+            Member member = g.retrieveMemberById(user.getId()).complete();
             if (member != null) {
                 g.getTextChannels().forEach(channel -> {
                     if (discordService.canSeeChannel(member, channel)) {

@@ -13,6 +13,7 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.sharding.DefaultShardManagerBuilder;
 import net.dv8tion.jda.api.sharding.ShardManager;
+import net.dv8tion.jda.api.utils.ChunkingFilter;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,10 +53,13 @@ public class BotConfig {
         log.info("Starting bot");
         DefaultShardManagerBuilder shardBuilder = DefaultShardManagerBuilder
             .create(this.token, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_MESSAGE_REACTIONS,
-                GatewayIntent.GUILD_EMOJIS, GatewayIntent.GUILD_MEMBERS).setMemberCachePolicy(MemberCachePolicy.NONE)
+                GatewayIntent.GUILD_EMOJIS, GatewayIntent.GUILD_MEMBERS)
             .disableCache(
                 CacheFlag.ACTIVITY, CacheFlag.VOICE_STATE, CacheFlag.CLIENT_STATUS)
             .addEventListeners(springJdaShim)
+            .setMemberCachePolicy(MemberCachePolicy.DEFAULT)
+            .setChunkingFilter(ChunkingFilter.NONE)
+            .setLargeThreshold(250)
             .setStatus(OnlineStatus.DO_NOT_DISTURB);
         ShardManager shardManager = shardBuilder.build();
         shardManager.addEventListener(new ReadyListener(shardManager));
