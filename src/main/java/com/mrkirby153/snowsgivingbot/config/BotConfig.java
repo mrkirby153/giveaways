@@ -53,7 +53,7 @@ public class BotConfig {
         log.info("Starting bot");
         DefaultShardManagerBuilder shardBuilder = DefaultShardManagerBuilder
             .create(this.token, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_MESSAGE_REACTIONS,
-                GatewayIntent.GUILD_EMOJIS, GatewayIntent.GUILD_MEMBERS)
+                GatewayIntent.GUILD_EMOJIS)
             .disableCache(
                 CacheFlag.ACTIVITY, CacheFlag.VOICE_STATE, CacheFlag.CLIENT_STATUS)
             .addEventListeners(springJdaShim)
