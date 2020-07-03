@@ -1,9 +1,11 @@
 package com.mrkirby153.snowsgivingbot.services.impl;
 
+import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import com.mrkirby153.snowsgivingbot.services.DiscordService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.Emote;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -11,6 +13,8 @@ import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageChannel;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.sharding.ShardManager;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -30,6 +34,9 @@ public class DiscordManager implements DiscordService {
     private static final Pattern jumpLinkMatcher = Pattern.compile(
         "https?://(canary\\.|ptb\\.)?discordapp.com/channels/(\\d{17,18})/(\\d{17,18})/(\\d{17,18})");
     private static final HashMap<String, String> messageChannelCache = new HashMap<>();
+
+    private static final String PLAYING_STATUS = "giveaways.mrkirby153.com • %help";
+    private static final long TIME_DELAY = 1800000; // 30 minutes
 
     private final ShardManager shardManager;
 
@@ -142,5 +149,17 @@ public class DiscordManager implements DiscordService {
     @Override
     public boolean canSeeChannel(Member member, TextChannel textChannel) {
         return member.hasPermission(textChannel, Permission.MESSAGE_READ);
+    }
+
+    @EventListener
+    public void onReady(AllShardsReadyEvent evt) {
+        log.debug("Setting playing status");
+        shardManager.setActivity(Activity.playing(PLAYING_STATUS));
+    }
+
+    @Scheduled(fixedRate = TIME_DELAY)
+    public void cycleStatus() {
+        log.debug("Updating playing status");
+        shardManager.setActivity(Activity.playing(PLAYING_STATUS));
     }
 }

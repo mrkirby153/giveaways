@@ -18,13 +18,16 @@ public class HelpCommand {
     private final String prefix;
     private final String dashUrlFormat;
     private final String permissions;
+    private final String supportInvite;
 
     public HelpCommand(@Value("${bot.prefix:!}") String prefix,
         @Value("${bot.dash-url-format}") String dashUrlFormat,
-        @Value("${bot.permissions:" + DEFAULT_PERMISSIONS + "}") String permissions) {
+        @Value("${bot.permissions:" + DEFAULT_PERMISSIONS + "}") String permissions,
+        @Value("${bot.support-server:}") String supportInvite) {
         this.prefix = prefix;
         this.dashUrlFormat = dashUrlFormat;
         this.permissions = permissions;
+        this.supportInvite = supportInvite;
     }
 
     @Command(name = "help", clearance = 100)
@@ -42,7 +45,8 @@ public class HelpCommand {
         desc.append(prefix)
             .append(
                 "winners set <message id> <winner count> - Sets the amount of winners for a giveaway\n");
-        desc.append(prefix).append("reroll <message id> - Picks new winners for the provided giveaway\n");
+        desc.append(prefix)
+            .append("reroll <message id> - Picks new winners for the provided giveaway\n");
         desc.append(prefix)
             .append("export - Exports a CSV of all the giveaways ran in this server\n");
         desc.append("\n");
@@ -60,6 +64,11 @@ public class HelpCommand {
         desc.append("Click [here](")
             .append(String.format(dashUrlFormat, context.getGuild().getId()))
             .append(") to view the giveaway dashboard.\n");
+
+        if (!this.supportInvite.isBlank()) {
+            desc.append("Join the [support server](").append(this.supportInvite)
+                .append(") for additional help\n");
+        }
         builder.setDescription(desc);
         builder.setColor(Color.BLUE);
         context.getChannel().sendMessage(builder.build()).queue();
