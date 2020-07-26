@@ -113,7 +113,7 @@ public class GiveawayManager implements GiveawayService {
 
     @Override
     public CompletableFuture<GiveawayEntity> createGiveaway(TextChannel channel, String name,
-        int winners, String endsIn, boolean secret) {
+        int winners, String endsIn, boolean secret, User host) {
         CompletableFuture<GiveawayEntity> cf = new CompletableFuture<>();
         GiveawayEntity entity = new GiveawayEntity();
         entity.setName(name);
@@ -129,6 +129,7 @@ public class GiveawayManager implements GiveawayService {
         entity.setChannelId(channel.getId());
         entity.setSecret(secret);
         entity.setGuildId(channel.getGuild().getId());
+        entity.setHost(host.getId());
         channel.sendMessage(GiveawayEmbedUtils.renderMessage(entity)).queue(m -> {
             entity.setMessageId(m.getId());
             if (custom) {

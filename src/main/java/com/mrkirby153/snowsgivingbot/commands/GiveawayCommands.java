@@ -72,7 +72,7 @@ public class GiveawayCommands {
         }
         try {
             giveawayService
-                .createGiveaway(context.getTextChannel(), prizeStr, winners, time, secret);
+                .createGiveaway(context.getTextChannel(), prizeStr, winners, time, secret, context.getAuthor());
         } catch (IllegalArgumentException e) {
             throw new CommandException(e.getMessage());
         }

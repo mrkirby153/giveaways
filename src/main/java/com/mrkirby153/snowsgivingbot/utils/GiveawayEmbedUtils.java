@@ -20,43 +20,62 @@ public class GiveawayEmbedUtils {
         eb.setTitle(entity.getName());
         eb.setTimestamp(entity.getEndsAt().toInstant());
 
+        StringBuilder descBuilder = new StringBuilder();
         switch (entity.getState()) {
             case RUNNING:
                 long timeLeftMs = entity.getEndsAt().getTime() - System.currentTimeMillis();
-                String time = Time.INSTANCE
-                    .formatLong(timeLeftMs, TimeUnit.SECONDS);
+                String time = Time.formatLong(timeLeftMs, TimeUnit.SECONDS);
                 eb.setColor(Color.GREEN);
-                eb.setDescription(
-                    "Click the reaction below to enter! \n\nTime Left **" + (timeLeftMs < 1000
-                        ? "< 1 Second" : time) + "**");
-                eb.setFooter(entity.getWinners() + " winners | Ends at");
+                descBuilder.append("Click the reaction below to enter!\n\nTime Left: **");
+                descBuilder.append(timeLeftMs < 1000 ? "< 1 Second" : time);
+                descBuilder.append("**");
+                if (entity.getHost() != null) {
+                    descBuilder.append("\nHost: <@!").append(entity.getHost()).append(">");
+                }
+                eb.setDescription(descBuilder.toString());
+                eb.setFooter(entity.getWinners() + " " + (entity.getWinners() > 1 ? "winners" : "winner")
+                    + " | Ends at");
                 break;
             case ENDED:
                 eb.setColor(Color.RED);
                 if (entity.getFinalWinners().isEmpty()) {
-                    eb.setDescription("Giveaway has ended!\n\nCould not determine a winner :(");
+                    descBuilder.append("Giveaway has ended!\n\nCould not determine a winner :(");
+                    if(entity.getHost() != null) {
+                        descBuilder.append("\nHost: <@!").append(entity.getHost()).append(">");
+                    }
                 } else {
                     if (!entity.isSecret()) {
-                        String winners = Arrays.stream(entity.getFinalWinners().split(","))
+                        String[] winnerIds = entity.getFinalWinners() != null? entity.getFinalWinners().split(",") : new String[0];
+                        String winners = Arrays.stream(winnerIds)
                             .map(a -> "<@!" + a.trim() + ">").collect(Collectors.joining(" "));
                         if (winners.length() > 1900) {
-                            eb.setDescription("Giveaway has ended!");
+                            descBuilder.append("Giveaway has ended!");
                         } else {
-                            eb.setDescription(
-                                "Giveaway has ended!\n\n**Winners:** " + winners);
+                            descBuilder.append("Giveaway has ended!\n\n");
+                            descBuilder
+                                .append(winnerIds.length > 1 ? "**Winners:** " : "**Winner:** ");
+                            descBuilder.append(winners);
+                        }
+                        if (entity.getHost() != null) {
+                            descBuilder.append("\nHost: <@!").append(entity.getHost())
+                                .append(">");
                         }
                     } else {
                         eb.setDescription("Giveaway has ended!\n\nWinners will be announced soon!");
                     }
                 }
-                eb.setFooter(entity.getWinners() + " winners | Ended at");
+                eb.setFooter(entity.getWinners() + " " + (entity.getWinners() > 1 ? "winners" : "winner")
+                    + " | Ended at");
                 break;
             case ENDING:
                 eb.setColor(Color.RED);
                 eb.setDescription("Giveaway has ended! Determining winners");
-                eb.setFooter(entity.getWinners() + " winners | Ended at");
+                eb.setFooter(
+                    entity.getWinners() + " " + (entity.getWinners() > 1 ? "winners" : "winner")
+                        + " | Ended at");
                 break;
         }
+        eb.setDescription(descBuilder.toString());
 
         mb.setEmbed(eb.build());
         mb.build();

@@ -37,6 +37,9 @@ public class GiveawayEntity {
     @NonNull
     private String name;
 
+    @Column(name = "host")
+    private String host;
+
     @NonNull
     @Column(name = "guild_id")
     private String guildId;
