@@ -1,8 +1,8 @@
 package com.mrkirby153.snowsgivingbot.services.impl;
 
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
-import com.mrkirby153.snowsgivingbot.entity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntrantEntity;
+import com.mrkirby153.snowsgivingbot.entity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
@@ -383,15 +383,28 @@ public class GiveawayManager implements GiveawayService {
             try {
                 if (channel != null && channel.getGuild().getSelfMember()
                     .hasPermission(channel, Permission.MESSAGE_READ, Permission.MESSAGE_WRITE)) {
+                    String msgLink = String
+                        .format("<https://discordapp.com/channels/%s/%s/%s>", channel.getGuild().getId(),
+                            channel.getId(), giveaway.getMessageId());
+                    boolean shouldIncludeMsgLink = true;
+                    if (channel.hasLatestMessage() && channel.getLatestMessageId()
+                        .equals(giveaway.getMessageId())) {
+                        shouldIncludeMsgLink = false;
+                    }
                     if (winners.size() == 0) {
                         // Could not determine a winner
-                        channel.sendMessage("\uD83D\uDEA8 Could not determine a winner!").queue();
+                        channel.sendMessage(
+                            "\uD83D\uDEA8 Could not determine a winner! \uD83D\uDEA8" + (shouldIncludeMsgLink ?
+                                "\n" + msgLink : "")).queue();
                     } else {
                         if (!giveaway.isSecret()) {
                             String winMessage = String
                                 .format(":tada: Congratulations %s you won **%s**",
                                     winnersAsMention,
                                     giveaway.getName());
+                            if(shouldIncludeMsgLink) {
+                                winMessage += "\n" + msgLink;
+                            }
                             if (winMessage.length() >= 2000) {
                                 StringBuilder sb = new StringBuilder();
                                 sb.append(":tada: Congratulations ");
@@ -405,6 +418,9 @@ public class GiveawayManager implements GiveawayService {
                                 }
                                 String appendMsg = String
                                     .format("you won **%s**", giveaway.getName());
+                                if (shouldIncludeMsgLink) {
+                                    appendMsg += "\n" + msgLink;
+                                }
                                 if (sb.length() + appendMsg.length() > 1990) {
                                     channel.sendMessage(sb.toString()).queue();
                                     channel.sendMessage(appendMsg).queue();
