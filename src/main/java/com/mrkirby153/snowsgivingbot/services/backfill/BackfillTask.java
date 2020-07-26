@@ -82,8 +82,7 @@ public class BackfillTask {
             initialize();
             if(errored) {
                 timeTaken = System.currentTimeMillis() - startTime;
-                // TODO: 5/21/20 Probably should end the giveaway so it's not backfilled again
-                future.complete(0L);
+                future.completeExceptionally(new BackfillInitializationException("Errored during initialization. Guild, Message, or Channel not found"));
                 return;
             }
             ReactionPaginationAction action;

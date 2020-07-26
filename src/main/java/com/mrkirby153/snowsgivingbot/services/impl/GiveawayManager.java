@@ -148,6 +148,11 @@ public class GiveawayManager implements GiveawayService {
     public void deleteGiveaway(String messageId) {
         GiveawayEntity entity = giveawayRepository.findByMessageId(messageId)
             .orElseThrow(() -> new IllegalArgumentException("Giveaway not found"));
+        deleteGiveaway(entity);
+    }
+
+    @Override
+    public void deleteGiveaway(GiveawayEntity entity) {
         TextChannel c = shardManager.getTextChannelById(entity.getChannelId());
         if (c != null) {
             c.deleteMessageById(entity.getMessageId()).queue();

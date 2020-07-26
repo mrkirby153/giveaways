@@ -97,6 +97,13 @@ public class GiveawayBackfillManager implements GiveawayBackfillService {
             if (giveaway.isPresent()) {
                 BackfillTask task = startBackfill(giveaway.get());
                 task.getFuture().handle((c, t) -> {
+                    if (t != null) {
+                        log.info("Giveaway {} did not backfill correctly", giveaway.get().getId());
+                        if(t instanceof BackfillInitializationException) {
+                            log.info("Deleting giveaway because it failed initialization: {}", t.getMessage());
+                            giveawayService.deleteGiveaway(giveaway.get());
+                        }
+                    }
                     log.debug("Backfill completed");
                     runNextQueuedTask();
                     return c;
