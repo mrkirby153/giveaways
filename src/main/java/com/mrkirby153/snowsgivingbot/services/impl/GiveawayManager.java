@@ -293,12 +293,14 @@ public class GiveawayManager implements GiveawayService {
     }
 
     private void updateMultipleGiveaways(List<GiveawayEntity> activeGiveaways, boolean schedule) {
+        List<GiveawayEntity> filtered = new ArrayList<>(activeGiveaways);
+        filtered.removeIf(entity -> endingGiveaways.contains(entity.getId()));
         if (!schedule) {
-            activeGiveaways.forEach(this::doUpdate);
+            filtered.forEach(this::doUpdate);
         } else {
             log.debug("Queueing giveaway updates over the next 60 seconds");
             Map<Long, List<GiveawayEntity>> bucketed = new HashMap<>();
-            activeGiveaways.forEach(g -> {
+            filtered.forEach(g -> {
                 long second = g.getId() % 60;
                 bucketed.computeIfAbsent(second, l -> new ArrayList<>()).add(g);
             });
