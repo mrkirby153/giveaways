@@ -508,7 +508,11 @@ public class GiveawayManager implements GiveawayService {
     @Async
     @Transactional
     public void onMessageDelete(MessageDeleteEvent event) {
-        giveawayRepository.deleteAllByMessageId(event.getMessageId());
+        try {
+            deleteGiveaway(event.getMessageId());
+        } catch (IllegalArgumentException e) {
+            // Ignore
+        }
     }
 
     @EventListener
