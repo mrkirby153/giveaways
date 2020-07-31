@@ -5,11 +5,12 @@ import com.mrkirby153.botcore.command.CommandException;
 import com.mrkirby153.botcore.command.Context;
 import com.mrkirby153.botcore.command.args.CommandContext;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
-import com.mrkirby153.snowsgivingbot.entity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntrantEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayRoleEntity;
+import com.mrkirby153.snowsgivingbot.entity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
+import com.mrkirby153.snowsgivingbot.services.ConfirmationService;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService;
 import com.mrkirby153.snowsgivingbot.services.PermissionService;
 import lombok.AllArgsConstructor;
@@ -17,6 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.TextChannel;
+import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.sharding.ShardManager;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -38,6 +41,8 @@ public class GiveawayCommands {
     private final EntrantRepository er;
     private final GiveawayRepository gr;
     private final PermissionService ps;
+    private final ConfirmationService confirmationService;
+    private final ShardManager shardManager;
 
     @Command(name = "start", arguments = {"<time:string>", "<prize:string...>"}, clearance = 100)
     public void createGiveaway(Context context, CommandContext cmdContext) {
@@ -72,7 +77,8 @@ public class GiveawayCommands {
         }
         try {
             giveawayService
-                .createGiveaway(context.getTextChannel(), prizeStr, winners, time, secret, context.getAuthor());
+                .createGiveaway(context.getTextChannel(), prizeStr, winners, time, secret,
+                    context.getAuthor());
         } catch (IllegalArgumentException e) {
             throw new CommandException(e.getMessage());
         }
@@ -93,14 +99,51 @@ public class GiveawayCommands {
 
     @Command(name = "reroll", arguments = {"<mid:snowflake>", "[users:string...]"}, clearance = 100)
     public void reroll(Context context, CommandContext cmdContext) {
-        context.getChannel().sendMessage("Rerolling giveaway...").queue();
+        GiveawayEntity entity = gr.findByMessageId(cmdContext.getNotNull("mid"))
+            .orElseThrow(() -> new CommandException("Giveaway not found"));
+        if (!entity.getGuildId().equals(context.getGuild().getId())) {
+            throw new CommandException("Giveaway not found");
+        }
         try {
             String[] users = null;
             String toReroll = cmdContext.get("users");
             if (toReroll != null) {
                 users = toReroll.split(",");
             }
-            giveawayService.reroll(cmdContext.getNotNull("mid"), users);
+            StringBuilder sb = new StringBuilder();
+            sb.append(String.format("Are you sure you want to reroll **%s**?", entity.getName()));
+            if (users != null && users.length > 0) {
+                sb.append(" The following users will be rerolled:\n");
+                for (String user : users) {
+                    User u = shardManager.getUserById(user);
+                    if (u != null) {
+                        sb.append(String
+                            .format(" - **%s#%s** `%s`\n", u.getName(), u.getDiscriminator(),
+                                u.getId()));
+                    } else {
+                        sb.append(String.format(" - `%s`\n", user));
+                    }
+                }
+            } else {
+              sb.append(" All users will be rerolled");
+            }
+            String[] finalUsers = users;
+            context.getChannel().sendMessage(sb.toString()).submit()
+                .thenCompose(msg -> confirmationService.confirm(msg, context.getAuthor()))
+                .handle((result, throwable) -> {
+                    if (throwable != null) {
+                        context.getChannel()
+                            .sendMessage("An error occurred: " + throwable.getMessage()).queue();
+                        return null;
+                    }
+                    if(result) {
+                        context.getChannel().sendMessage("Rerolling giveaway...").queue();
+                        giveawayService.reroll(entity.getMessageId(), finalUsers);
+                    } else {
+                        context.getChannel().sendMessage("Canceling").queue();
+                    }
+                    return null;
+                });
         } catch (IllegalArgumentException | IllegalStateException e) {
             throw new CommandException(e.getMessage());
         }
