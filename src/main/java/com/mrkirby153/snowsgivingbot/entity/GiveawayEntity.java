@@ -75,13 +75,27 @@ public class GiveawayEntity {
     @Column(name = "final_winners")
     private String finalWinners;
 
+    public String[] getFinalWinners() {
+        if(finalWinners == null || finalWinners.isEmpty())
+            return new String[0];
+        return finalWinners.split(",");
+    }
+
+    public void setFinalWinners(String[] winners) {
+        if(winners == null){
+            finalWinners = null;
+        } else {
+            finalWinners = String.join(",", winners);
+        }
+    }
+
 
     @Override
     public String toString() {
         return "GiveawayEntity{" +
-                "id=" + id +
-                ", name='" + name + '\'' +
-                ", channelId='" + channelId + '\'' +
-                '}';
+            "id=" + id +
+            ", name='" + name + '\'' +
+            ", channelId='" + channelId + '\'' +
+            '}';
     }
 }

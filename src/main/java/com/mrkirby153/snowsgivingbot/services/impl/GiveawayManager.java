@@ -40,10 +40,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -67,8 +69,6 @@ public class GiveawayManager implements GiveawayService {
     private final TaskScheduler taskScheduler;
     private final GiveawayBackfillService backfillService;
 
-    private final Object giveawayLock = new Object();
-
     private final Map<String, GiveawayEntity> entityCache = new HashMap<>();
 
     private final AtomicLong counter = new AtomicLong(0);
@@ -77,6 +77,8 @@ public class GiveawayManager implements GiveawayService {
     private final boolean custom;
     private final String emoteId;
 
+    private final Object endingGiveawayLock = new Object();
+    private final Random random = new Random();
     private final List<Long> endingGiveaways = new CopyOnWriteArrayList<>();
 
     private boolean isReady = false;
@@ -84,7 +86,7 @@ public class GiveawayManager implements GiveawayService {
     public GiveawayManager(ShardManager shardManager, EntrantRepository entrantRepository,
         GiveawayRepository giveawayRepository,
         DiscordService discordService,
-        @Value("${bot.reaction:\uD83C\uDF89}") String emote,
+        @Value("${bot.reaction:" + TADA + "}") String emote,
         ApplicationEventPublisher aep,
         TaskExecutor taskExecutor, StandaloneWorkerService sws, RedisQueueService rqs,
         TaskScheduler taskScheduler,
@@ -118,7 +120,7 @@ public class GiveawayManager implements GiveawayService {
         GiveawayEntity entity = new GiveawayEntity();
         entity.setName(name);
         entity.setWinners(winners);
-        Timestamp endsAt = new Timestamp(System.currentTimeMillis() + Time.INSTANCE.parse(endsIn));
+        Timestamp endsAt = new Timestamp(System.currentTimeMillis() + Time.parse(endsIn));
         Calendar cal = Calendar.getInstance();
         cal.setTimeInMillis(endsAt.getTime());
         if (cal.get(Calendar.YEAR) >= 2038) {
@@ -166,12 +168,12 @@ public class GiveawayManager implements GiveawayService {
         List<String> winList = new ArrayList<>();
         // Add the already existing winners to the giveaway
         if (giveaway.getFinalWinners() != null) {
-            Arrays.stream(giveaway.getFinalWinners().split(",")).map(String::trim)
+            Arrays.stream(giveaway.getFinalWinners()).map(String::trim)
                 .forEach(winList::add);
         }
         List<String> allIds = entrantRepository.findAllIdsFromGiveaway(giveaway);
         while (winList.size() < giveaway.getWinners() && !allIds.isEmpty()) {
-            winList.add(allIds.remove((int) (Math.random() * allIds.size())));
+            winList.add(allIds.remove(random.nextInt(allIds.size())));
         }
         return winList;
     }
@@ -191,15 +193,14 @@ public class GiveawayManager implements GiveawayService {
         if (ge.getState() != GiveawayState.ENDED) {
             throw new IllegalArgumentException("Cannot reroll an in progress giveaway");
         }
-        List<String> toRemove = Arrays.stream(ge.getFinalWinners().split(",")).map(String::trim)
-            .collect(
-                Collectors.toList());
+        List<String> existingWinners = Arrays.stream(ge.getFinalWinners()).map(String::trim)
+            .collect(Collectors.toList());
         if (users != null) {
             log.debug("Rerolling with existing users");
             for (String s : users) {
-                toRemove.remove(s.trim());
+                existingWinners.remove(s.trim());
             }
-            ge.setFinalWinners(String.join(",", toRemove));
+            ge.setFinalWinners(existingWinners.toArray(new String[0]));
         } else {
             log.debug("Rerolling with new users");
             ge.setFinalWinners(null);
@@ -259,11 +260,9 @@ public class GiveawayManager implements GiveawayService {
     }
 
     private void updateGiveaways(Timestamp before) {
-        synchronized (giveawayLock) {
-            List<GiveawayEntity> giveaways = giveawayRepository
-                .findAllByEndsAtBeforeAndStateIs(before, GiveawayState.RUNNING);
-            updateMultipleGiveaways(giveaways, false);
-        }
+        List<GiveawayEntity> giveaways = giveawayRepository
+            .findAllByEndsAtBeforeAndStateIs(before, GiveawayState.RUNNING);
+        updateMultipleGiveaways(giveaways, false);
     }
 
     @Scheduled(fixedDelay = 1000L) // 1 Second
@@ -297,7 +296,8 @@ public class GiveawayManager implements GiveawayService {
         updateMultipleGiveaways(activeGiveaways, true);
     }
 
-    private void updateMultipleGiveaways(List<GiveawayEntity> activeGiveaways, boolean schedule) {
+    private synchronized void updateMultipleGiveaways(List<GiveawayEntity> activeGiveaways,
+        boolean schedule) {
         List<GiveawayEntity> filtered = new ArrayList<>(activeGiveaways);
         filtered.removeIf(entity -> endingGiveaways.contains(entity.getId()));
         if (!schedule) {
@@ -343,125 +343,123 @@ public class GiveawayManager implements GiveawayService {
         endGiveaway(giveaway, false);
     }
 
-    private void endGiveaway(GiveawayEntity giveaway, boolean reroll) {
-        log.info("Ending giveaway {}", giveaway);
-        // Prevent giveaways from ending twice
-        if (endingGiveaways.contains(giveaway.getId())) {
-            log.info("Giveaway {} is already ending!", giveaway);
+    private List<String> generateEndMessage(GiveawayEntity entity, boolean includeMsgLink) {
+        String msgLink = String
+            .format("<https://discordapp.com/channels/%s/%s/%s>", entity.getGuildId(),
+                entity.getChannelId(), entity.getMessageId());
+        List<String> winnerMentions = Arrays.stream(entity.getFinalWinners())
+            .map(id -> String.format("<@!%s>", id)).collect(
+                Collectors.toList());
+
+        if (entity.getFinalWinners().length == 0) {
+            return Collections.singletonList(
+                "\uD83D\uDEA8 Could not determine a winner! \uD83D\uDEA8" + (includeMsgLink ? "\n"
+                    + msgLink : ""));
+        }
+
+        String winMessage = String
+            .format(":tada: Congratulations %s, you won **%s**", String.join(" ", winnerMentions),
+                entity.getName());
+        if (includeMsgLink) {
+            winMessage = winMessage + "\n" + msgLink;
+        }
+        if (winMessage.length() < 1900) {
+            return Collections.singletonList(winMessage);
+        }
+        // We need to split messages
+        List<String> messages = new ArrayList<>();
+        StringBuilder builder = new StringBuilder();
+        builder.append(":tada: Congratulations ");
+        for (String mention : winnerMentions) {
+            if (builder.length() + mention.length() + 1 > 1990) {
+                messages.add(builder.toString());
+                builder = new StringBuilder();
+            }
+            builder.append(String.format("%s ", mention));
+        }
+        String msg = String.format("you won **%s**", entity.getName());
+        if (includeMsgLink) {
+            msg = msg + "\n" + msgLink;
+        }
+        if (builder.length() + msg.length() >= 1990) {
+            messages.add(builder.toString());
+            builder = new StringBuilder();
+        }
+        builder.append(msg);
+        if (builder.length() > 0) {
+            messages.add(builder.toString());
+        }
+        return messages;
+    }
+
+    private void queueRender(GiveawayEntity giveawayEntity) {
+        TextChannel c = shardManager.getTextChannelById(giveawayEntity.getChannelId());
+        if (c == null) {
             return;
         }
-        endingGiveaways.add(giveaway.getId());
+        c.retrieveMessageById(giveawayEntity.getMessageId())
+            .queue(msg -> msg.editMessage(GiveawayEmbedUtils.renderMessage(giveawayEntity)).queue(),
+                throwable -> log.warn("Could not queue render for {}", giveawayEntity, throwable));
+    }
+
+    private synchronized void endGiveaway(GiveawayEntity giveaway, boolean reroll) {
+        if(endingGiveaways.contains(giveaway.getId())) {
+            log.debug("Giveaway {} is alrady ending", giveaway);
+            return;
+        }
+        log.info("Ending giveaway {}", giveaway);
         sws.removeFromWorker(giveaway);
-
+        endingGiveaways.add(giveaway.getId());
         taskExecutor.execute(() -> {
-            giveaway.setState(GiveawayState.ENDING);
-            giveawayRepository.save(giveaway);
-            TextChannel channel = shardManager.getTextChannelById(giveaway.getChannelId());
-            if (channel != null && channel.getGuild().getSelfMember()
-                .hasPermission(channel, Permission.MESSAGE_READ, Permission.MESSAGE_WRITE)) {
-                channel.retrieveMessageById(giveaway.getMessageId())
-                    .queue(
-                        msg -> msg.editMessage(GiveawayEmbedUtils.renderMessage(giveaway))
-                            .queue());
-            }
-
-            long queueSize = 0;
-            while (backfillService.isBackfilling(giveaway)) {
-                try {
-                    log.debug("Giveaway {} is being backfilled.", giveaway.getId());
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
-            }
-            while ((queueSize = rqs.queueSize(giveaway.getId())) > 0) {
-                try {
-                    log.debug("Giveaway {} has a queue size of {}", giveaway.getId(), queueSize);
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
-            }
-
-            List<String> winners = determineWinners(giveaway);
-
-            String winnersAsMention = winners.stream().map(id -> "<@!" + id + ">")
-                .collect(Collectors.joining(" "));
             try {
-                if (channel != null && channel.getGuild().getSelfMember()
-                    .hasPermission(channel, Permission.MESSAGE_READ, Permission.MESSAGE_WRITE)) {
-                    String msgLink = String
-                        .format("<https://discordapp.com/channels/%s/%s/%s>", channel.getGuild().getId(),
-                            channel.getId(), giveaway.getMessageId());
-                    boolean shouldIncludeMsgLink = true;
-                    if (channel.hasLatestMessage() && channel.getLatestMessageId()
-                        .equals(giveaway.getMessageId())) {
-                        shouldIncludeMsgLink = false;
+                synchronized (endingGiveawayLock) {
+                    giveaway.setState(GiveawayState.ENDING);
+                    TextChannel channel = shardManager.getTextChannelById(giveaway.getChannelId());
+                    if (channel == null || !channel.getGuild().getSelfMember()
+                        .hasPermission(channel, Permission.MESSAGE_READ,
+                            Permission.MESSAGE_WRITE)) {
+                        log.info(
+                            "Can't end giveaway {}. Channel not found or missing MESSAGE_READ/MESSAGE_WRITE",
+                            giveaway);
+                        return;
                     }
-                    if (winners.size() == 0) {
-                        // Could not determine a winner
-                        channel.sendMessage(
-                            "\uD83D\uDEA8 Could not determine a winner! \uD83D\uDEA8" + (shouldIncludeMsgLink ?
-                                "\n" + msgLink : "")).queue();
-                    } else {
-                        if (!giveaway.isSecret()) {
-                            String winMessage = String
-                                .format(":tada: Congratulations %s you won **%s**",
-                                    winnersAsMention,
-                                    giveaway.getName());
-                            if(shouldIncludeMsgLink) {
-                                winMessage += "\n" + msgLink;
-                            }
-                            if (winMessage.length() >= 2000) {
-                                StringBuilder sb = new StringBuilder();
-                                sb.append(":tada: Congratulations ");
-                                for (String winner : winners) {
-                                    String asMention = String.format("<@!%s> ", winner);
-                                    if (sb.length() + asMention.length() > 1990) {
-                                        channel.sendMessage(sb.toString()).queue();
-                                        sb = new StringBuilder();
-                                    }
-                                    sb.append(asMention);
-                                }
-                                String appendMsg = String
-                                    .format("you won **%s**", giveaway.getName());
-                                if (shouldIncludeMsgLink) {
-                                    appendMsg += "\n" + msgLink;
-                                }
-                                if (sb.length() + appendMsg.length() > 1990) {
-                                    channel.sendMessage(sb.toString()).queue();
-                                    channel.sendMessage(appendMsg).queue();
-                                } else {
-                                    sb.append(appendMsg);
-                                    channel.sendMessage(sb.toString()).queue();
-                                }
-                            } else {
-                                channel.sendMessage(winMessage).queue();
-                            }
-                        } else {
-                            if (!reroll) {
-                                channel.sendMessage(":tada: **" + giveaway.getName()
-                                    + "** has ended. Stay tuned for the winners!").queue();
-                            }
+                    queueRender(giveaway);
+                    long standaloneQueueSize = 0;
+                    while (backfillService.isBackfilling(giveaway)
+                        || (standaloneQueueSize = rqs.queueSize(giveaway.getId())) > 0) {
+                        log.debug("Giveaway is still being processed. Queue Size: {}",
+                            standaloneQueueSize);
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            // Ignore
                         }
-                        channel.retrieveMessageById(giveaway.getMessageId()).queue(msg -> {
-                            msg.editMessage(GiveawayEmbedUtils.renderMessage(giveaway))
-                                .queue();
-                        });
                     }
+                    List<String> winners = determineWinners(giveaway);
+                    giveaway.setFinalWinners(winners.toArray(new String[0]));
+                    if (giveaway.isSecret() && !reroll) {
+                        channel.sendMessage(String
+                            .format(":tada: **%s** has ended. Stay tuned for the winners",
+                                giveaway.getName())).queue();
+                        return;
+                    }
+                    boolean includeLink = true;
+                    if(channel.hasLatestMessage() && channel.getLatestMessageId().equals(giveaway.getMessageId())) {
+                        includeLink = false;
+                    }
+                    generateEndMessage(giveaway, includeLink)
+                        .forEach(msg -> channel.sendMessage(msg).queue());
+                    giveaway.setState(GiveawayState.ENDED);
+                    queueRender(giveaway);
                 }
             } catch (Exception e) {
-                log.error("An error occurred announcing the end of {}", giveaway.getName(), e);
+                log.error("Error ending giveaway {}", giveaway, e);
             } finally {
                 giveaway.setState(GiveawayState.ENDED);
-                giveaway.setFinalWinners(String.join(", ", winners));
-                giveawayRepository.save(giveaway);
+                GiveawayEntity saved = giveawayRepository.save(giveaway);
                 entityCache.remove(giveaway.getMessageId());
-                publisher.publishEvent(new GiveawayEndedEvent(giveaway));
-                taskScheduler.schedule(() -> {
-                    log.debug("Removing {} from finished giveaways", giveaway.getId());
-                    endingGiveaways.remove(giveaway.getId());
-                }, Instant.now().plusSeconds(30));
+                publisher.publishEvent(new GiveawayEndedEvent(saved));
+                endingGiveaways.remove(giveaway.getId());
             }
         });
     }

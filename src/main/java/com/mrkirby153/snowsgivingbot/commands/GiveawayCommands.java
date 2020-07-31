@@ -145,7 +145,7 @@ public class GiveawayCommands {
         if (entity.getState() != GiveawayState.ENDED) {
             throw new CommandException("Giveaway has not ended yet!");
         }
-        String[] winners = entity.getFinalWinners().split(",");
+        String[] winners = entity.getFinalWinners();
 
         String winnerString = Arrays.stream(winners).map(String::trim).map(s -> "<@!" + s + ">")
             .collect(Collectors.joining(", "));

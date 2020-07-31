@@ -38,14 +38,14 @@ public class GiveawayEmbedUtils {
                 break;
             case ENDED:
                 eb.setColor(Color.RED);
-                if (entity.getFinalWinners().isEmpty()) {
+                if (entity.getFinalWinners().length == 0) {
                     descBuilder.append("Giveaway has ended!\n\nCould not determine a winner :(");
                     if(entity.getHost() != null) {
                         descBuilder.append("\nHost: <@!").append(entity.getHost()).append(">");
                     }
                 } else {
                     if (!entity.isSecret()) {
-                        String[] winnerIds = entity.getFinalWinners() != null? entity.getFinalWinners().split(",") : new String[0];
+                        String[] winnerIds = entity.getFinalWinners() != null? entity.getFinalWinners() : new String[0];
                         String winners = Arrays.stream(winnerIds)
                             .map(a -> "<@!" + a.trim() + ">").collect(Collectors.joining(" "));
                         if (winners.length() > 1900) {
