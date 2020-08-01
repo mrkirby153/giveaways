@@ -9,12 +9,12 @@ const LoginHandler: React.FC = () => {
 
   const getState = (): string => {
     const state = Math.random().toString(36);
-    localStorage.setItem(AUTH_STATE_KEY, state);
+    sessionStorage.setItem(AUTH_STATE_KEY, state);
     return state;
   }
 
   const isStateValid = (state: string): boolean => {
-    const storedState = localStorage.getItem(AUTH_STATE_KEY);
+    const storedState = sessionStorage.getItem(AUTH_STATE_KEY);
     return storedState === state;
   }
 
@@ -39,11 +39,11 @@ const LoginHandler: React.FC = () => {
         localStorage.setItem(JWT_KEY, resp.data);
         window.opener.postMessage(WINDOW_MSG_AUTHENTICATED)
         setSuccess(true);
-        localStorage.removeItem(AUTH_STATE_KEY);
+        sessionStorage.removeItem(AUTH_STATE_KEY);
         window.close();
       }).catch(ex => {
         setErrorMessage(`An error occurred logging you in: ${ex.response.data.message}`);
-        localStorage.removeItem(AUTH_STATE_KEY);
+        sessionStorage.removeItem(AUTH_STATE_KEY);
       })
     } else {
       axios.get('/api/client').then(resp => {
@@ -60,9 +60,9 @@ const LoginHandler: React.FC = () => {
   }
 
   const redirectToPreviousWindow = () => {
-    const redirect = localStorage.getItem(PREV_URL_KEY);
+    const redirect = sessionStorage.getItem(PREV_URL_KEY);
     if (redirect) {
-      localStorage.removeItem(PREV_URL_KEY);
+      sessionStorage.removeItem(PREV_URL_KEY);
       window.location.replace(redirect)
     }
   }
