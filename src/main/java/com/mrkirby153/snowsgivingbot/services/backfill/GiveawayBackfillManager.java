@@ -5,6 +5,7 @@ import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
+import com.mrkirby153.snowsgivingbot.services.AdminLoggerService;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,7 @@ public class GiveawayBackfillManager implements GiveawayBackfillService {
     private final GiveawayService giveawayService;
     private final GiveawayRepository giveawayRepository;
     private final ShardManager shardManager;
+    private final AdminLoggerService adminLogger;
 
     @Override
     public BackfillTask startBackfill(GiveawayEntity giveaway) {
@@ -88,6 +90,9 @@ public class GiveawayBackfillManager implements GiveawayBackfillService {
 
     private void runNextQueuedTask() {
         log.info("{} pending backfills remaining", pendingBackfills.size());
+        if(pendingBackfills.size() == 0) {
+            adminLogger.log("All giveaways have been backfilled");
+        }
         log.debug("Running next backfill task");
         Iterator<Long> iter = pendingBackfills.iterator();
         if (iter.hasNext()) {
@@ -99,9 +104,14 @@ public class GiveawayBackfillManager implements GiveawayBackfillService {
                 task.getFuture().handle((c, t) -> {
                     if (t != null) {
                         log.info("Giveaway {} did not backfill correctly", giveaway.get().getId());
-                        if(t instanceof BackfillInitializationException) {
-                            log.info("Deleting giveaway because it failed initialization: {}", t.getMessage());
+                        if (t instanceof BackfillInitializationException) {
+                            log.info("Deleting giveaway because it failed initialization: {}",
+                                t.getMessage());
                             giveawayService.deleteGiveaway(giveaway.get());
+                        } else {
+                            adminLogger.log(String
+                                .format("Giveaway %s did not backfill correctly: %s",
+                                    giveaway.get().getId(), t.getMessage()));
                         }
                     }
                     log.debug("Backfill completed");
@@ -121,6 +131,9 @@ public class GiveawayBackfillManager implements GiveawayBackfillService {
         log.debug("There are {} running giveaways to backfill", runningGiveaways.size());
         pendingBackfills.addAll(
             runningGiveaways.stream().map(GiveawayEntity::getId).collect(Collectors.toList()));
+        if (runningGiveaways.size() > 0) {
+            adminLogger.log(String.format("Backfilling %d giveaways", runningGiveaways.size()));
+        }
         runNextQueuedTask();
     }
 }
