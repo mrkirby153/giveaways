@@ -115,13 +115,13 @@ public class GiveawayCommands {
             if (users != null && users.length > 0) {
                 sb.append(" The following users will be rerolled:\n");
                 for (String user : users) {
-                    User u = shardManager.getUserById(user);
+                    User u = shardManager.getUserById(user.trim());
                     if (u != null) {
                         sb.append(String
                             .format(" - **%s#%s** `%s`\n", u.getName(), u.getDiscriminator(),
                                 u.getId()));
                     } else {
-                        sb.append(String.format(" - `%s`\n", user));
+                        sb.append(String.format(" - `%s`\n", user.trim()));
                     }
                 }
             } else {

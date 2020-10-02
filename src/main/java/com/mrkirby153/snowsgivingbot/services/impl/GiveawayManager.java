@@ -165,15 +165,20 @@ public class GiveawayManager implements GiveawayService {
 
     @Override
     public List<String> determineWinners(GiveawayEntity giveaway) {
-        List<String> winList = new ArrayList<>();
-        // Add the already existing winners to the giveaway
-        if (giveaway.getFinalWinners() != null) {
-            Arrays.stream(giveaway.getFinalWinners()).map(String::trim)
-                .forEach(winList::add);
-        }
+        return determineWinners(giveaway, Collections.emptyList(), giveaway.getWinners());
+    }
+
+    @Override
+    public List<String> determineWinners(GiveawayEntity giveaway, List<String> existingWinners,
+        int amount) {
         List<String> allIds = entrantRepository.findAllIdsFromGiveaway(giveaway);
-        while (winList.size() < giveaway.getWinners() && !allIds.isEmpty()) {
-            winList.add(allIds.remove(random.nextInt(allIds.size())));
+        List<String> winList = new ArrayList<>();
+        while (winList.size() < amount && !allIds.isEmpty()) {
+            String potentialWinner;
+            do {
+                potentialWinner = allIds.remove(random.nextInt(allIds.size()));
+            } while (existingWinners.contains(potentialWinner));
+            winList.add(potentialWinner);
         }
         return winList;
     }
@@ -193,19 +198,38 @@ public class GiveawayManager implements GiveawayService {
         if (ge.getState() != GiveawayState.ENDED) {
             throw new IllegalArgumentException("Cannot reroll an in progress giveaway");
         }
+        TextChannel chan = shardManager.getTextChannelById(ge.getChannelId());
+        if (chan == null || !chan.canTalk()) {
+            throw new IllegalArgumentException(
+                "I can't talk in the giveaway channel, so I cannot reroll");
+        }
         List<String> existingWinners = Arrays.stream(ge.getFinalWinners()).map(String::trim)
             .collect(Collectors.toList());
-        if (users != null) {
+        List<String> newWinners;
+        List<String> allWinners = new ArrayList<>();
+        if (users != null && users.length > 0) {
             log.debug("Rerolling with existing users");
             for (String s : users) {
                 existingWinners.remove(s.trim());
             }
-            ge.setFinalWinners(existingWinners.toArray(new String[0]));
+            log.debug("picking {} new winners for {}", users.length, ge.getId());
+            newWinners = determineWinners(ge, existingWinners, users.length);
+            allWinners.addAll(existingWinners);
         } else {
             log.debug("Rerolling with new users");
-            ge.setFinalWinners(null);
+            newWinners = determineWinners(ge);
         }
-        endGiveaway(ge, true);
+        allWinners.addAll(newWinners);
+
+        // This is a total hack. Set the final winners of the giveaway, render the end message so
+        // it only shows the new winners, then set the final winners of the giveaway so the embed
+        // updates
+        ge.setFinalWinners(newWinners.toArray(new String[0]));
+        List<String> messages = generateEndMessage(ge, true);
+        messages.forEach(m -> chan.sendMessage(m).queue());
+        ge.setFinalWinners(allWinners.toArray(new String[0]));
+        ge = giveawayRepository.save(ge);
+        doUpdate(ge);
     }
 
     @Override
@@ -251,7 +275,7 @@ public class GiveawayManager implements GiveawayService {
             return;
         }
         TextChannel chan = g.getTextChannelById(entity.getChannelId());
-        if (chan == null) {
+        if (chan == null || !chan.canTalk()) {
             return;
         }
         chan.retrieveMessageById(entity.getMessageId()).queue(msg -> {
@@ -403,7 +427,7 @@ public class GiveawayManager implements GiveawayService {
     }
 
     private synchronized void endGiveaway(GiveawayEntity giveaway, boolean reroll) {
-        if(endingGiveaways.contains(giveaway.getId())) {
+        if (endingGiveaways.contains(giveaway.getId())) {
             log.debug("Giveaway {} is alrady ending", giveaway);
             return;
         }
@@ -444,7 +468,8 @@ public class GiveawayManager implements GiveawayService {
                         return;
                     }
                     boolean includeLink = true;
-                    if(channel.hasLatestMessage() && channel.getLatestMessageId().equals(giveaway.getMessageId())) {
+                    if (channel.hasLatestMessage() && channel.getLatestMessageId()
+                        .equals(giveaway.getMessageId())) {
                         includeLink = false;
                     }
                     generateEndMessage(giveaway, includeLink)
