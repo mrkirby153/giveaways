@@ -14,6 +14,8 @@ import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
 import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import com.mrkirby153.snowsgivingbot.services.backfill.GiveawayBackfillService;
 import com.mrkirby153.snowsgivingbot.utils.GiveawayEmbedUtils;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
 import net.dv8tion.jda.api.Permission;
@@ -41,13 +43,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import javax.transaction.Transactional;
@@ -80,6 +86,7 @@ public class GiveawayManager implements GiveawayService {
     private final Object endingGiveawayLock = new Object();
     private final Random random = new Random();
     private final List<Long> endingGiveaways = new CopyOnWriteArrayList<>();
+    private final GiveawayRenderer giveawayRenderer = new GiveawayRenderer();
 
     private boolean isReady = false;
 
@@ -343,7 +350,7 @@ public class GiveawayManager implements GiveawayService {
         List<GiveawayEntity> filtered = new ArrayList<>(activeGiveaways);
         filtered.removeIf(entity -> endingGiveaways.contains(entity.getId()));
         if (!schedule) {
-            filtered.forEach(this::renderGiveaway);
+            filtered.forEach(this.giveawayRenderer::queueUpdate);
         } else {
             log.debug("Queueing giveaway updates over the next 60 seconds");
             Map<Long, List<GiveawayEntity>> bucketed = new HashMap<>();
@@ -353,8 +360,8 @@ public class GiveawayManager implements GiveawayService {
             });
             bucketed.forEach((key, value) -> {
                 log.debug(" - {}: {} giveaways", key, value.size());
-                taskScheduler.schedule(() -> value.forEach(this::renderGiveaway),
-                    Instant.now().plusSeconds(key));
+                long time = Instant.now().plusSeconds(key).toEpochMilli();
+                value.forEach(e -> this.giveawayRenderer.queueUpdate(e, time));
             });
         }
     }
@@ -578,5 +585,113 @@ public class GiveawayManager implements GiveawayService {
     public void onReady(AllShardsReadyEvent event) {
         log.debug("Bot is ready");
         isReady = true;
+    }
+
+    private class GiveawayRenderer {
+
+        private final PriorityBlockingQueue<QueuedRender> queue = new PriorityBlockingQueue<>(11,
+            Comparator.comparingLong(QueuedRender::getUpdateAt));
+
+        private ScheduledFuture<?> future = null;
+        private long nextRun = 0L;
+        private long nextRunId = 0L;
+
+        public void onUpdate() {
+            log.debug("Running queue update");
+            while (queue.peek() != null && queue.peek().updateAt < System.currentTimeMillis()) {
+                QueuedRender toRender = queue.poll();
+                if (toRender == null) {
+                    continue;
+                }
+                renderGiveaway(toRender.entity);
+            }
+            log.debug("Queue update ran");
+            future = null;
+            nextRun = 0L;
+            nextRunId = 0L;
+            updateFuture();
+        }
+
+        /**
+         * Queues a giveaway for render
+         *
+         * @param entity   The entity to queue for render
+         * @param renderAt The time when the giveaway should be rendered
+         */
+        public void queueUpdate(GiveawayEntity entity, long renderAt) {
+            QueuedRender render = new QueuedRender(renderAt, entity);
+            if (queue.contains(render)) {
+                log.debug("Skipping render of {} as there's already a render queued", entity);
+            } else {
+                queue.add(render);
+                log.debug("Queueing render of {} in {}", entity,
+                    Time.format(1, renderAt - System.currentTimeMillis()));
+            }
+            updateFuture();
+        }
+
+        /**
+         * Queues a giveaway for render immediately
+         *
+         * @param entity The entity to queue for render
+         */
+        public void queueUpdate(GiveawayEntity entity) {
+            queueUpdate(entity, System.currentTimeMillis());
+        }
+
+        /**
+         * Updates the scheduled future, rescheduling it if necessary
+         */
+        private void updateFuture() {
+            QueuedRender next = queue.peek();
+            if (next == null) {
+                log.debug("empty render queue");
+                return;
+            }
+            if (next.updateAt < nextRun || nextRun == 0L) {
+                if(nextRunId == next.getEntity().getId()) {
+                    // We're rescheduling the same thing
+                    log.debug("Not rescheduling");
+                    return;
+                }
+                if (future != null) {
+                    log.debug("Aborting scheduled render");
+                    future.cancel(false);
+                }
+                long diff = next.updateAt - System.currentTimeMillis();
+                log.debug("Scheduling render: {}", Time.format(1, diff));
+                Instant nextRunTime = Instant.now().plusMillis(diff);
+                future = taskScheduler.schedule(this::onUpdate, nextRunTime);
+                nextRun = nextRunTime.toEpochMilli();
+                nextRunId = next.getEntity().getId();
+            } else {
+                log.debug("Not rescheduling render");
+            }
+        }
+
+        @Data
+        @AllArgsConstructor
+        private class QueuedRender {
+
+            private long updateAt;
+            private GiveawayEntity entity;
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(entity);
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) {
+                    return true;
+                }
+                if (o == null || getClass() != o.getClass()) {
+                    return false;
+                }
+                QueuedRender that = (QueuedRender) o;
+                return entity.getId() == that.entity.getId();
+            }
+        }
     }
 }
