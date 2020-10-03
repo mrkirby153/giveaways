@@ -121,17 +121,20 @@ public class GiveawayManager implements GiveawayService {
         entity.setName(name);
         entity.setWinners(winners);
         Timestamp endsAt = new Timestamp(System.currentTimeMillis() + Time.parse(endsIn));
+        // 2038 problem workaround
         Calendar cal = Calendar.getInstance();
         cal.setTimeInMillis(endsAt.getTime());
         if (cal.get(Calendar.YEAR) >= 2038) {
             throw new IllegalArgumentException(
                 "Can't start a giveaway that ends that far in the future!");
         }
+
         entity.setEndsAt(endsAt);
         entity.setChannelId(channel.getId());
         entity.setSecret(secret);
         entity.setGuildId(channel.getGuild().getId());
         entity.setHost(host.getId());
+
         channel.sendMessage(GiveawayEmbedUtils.renderMessage(entity)).queue(m -> {
             entity.setMessageId(m.getId());
             if (custom) {
@@ -198,15 +201,18 @@ public class GiveawayManager implements GiveawayService {
         if (ge.getState() != GiveawayState.ENDED) {
             throw new IllegalArgumentException("Cannot reroll an in progress giveaway");
         }
+
         TextChannel chan = shardManager.getTextChannelById(ge.getChannelId());
         if (chan == null || !chan.canTalk()) {
             throw new IllegalArgumentException(
                 "I can't talk in the giveaway channel, so I cannot reroll");
         }
+
         List<String> existingWinners = Arrays.stream(ge.getFinalWinners()).map(String::trim)
             .collect(Collectors.toList());
         List<String> newWinners;
         List<String> allWinners = new ArrayList<>();
+
         if (users != null && users.length > 0) {
             log.debug("Rerolling with existing users");
             for (String s : users) {
@@ -229,7 +235,7 @@ public class GiveawayManager implements GiveawayService {
         messages.forEach(m -> chan.sendMessage(m).queue());
         ge.setFinalWinners(allWinners.toArray(new String[0]));
         ge = giveawayRepository.save(ge);
-        doUpdate(ge);
+        renderGiveaway(ge);
     }
 
     @Override
@@ -283,6 +289,11 @@ public class GiveawayManager implements GiveawayService {
         });
     }
 
+    /**
+     * Updates all running giveaways that end before the given timestamp
+     *
+     * @param before The timestamp
+     */
     private void updateGiveaways(Timestamp before) {
         List<GiveawayEntity> giveaways = giveawayRepository
             .findAllByEndsAtBeforeAndStateIs(before, GiveawayState.RUNNING);
@@ -294,7 +305,7 @@ public class GiveawayManager implements GiveawayService {
         if (!isReady) {
             return;
         }
-        updateEndedGiveaways();
+        endEndedGiveaways();
         long count = counter.getAndIncrement();
         Instant now = Instant.now();
         if (count % 120 == 0) {
@@ -320,12 +331,19 @@ public class GiveawayManager implements GiveawayService {
         updateMultipleGiveaways(activeGiveaways, true);
     }
 
+    /**
+     * Updates multiple giveaways at the same time
+     *
+     * @param activeGiveaways The list of giveaways to update
+     * @param schedule        If the giveaway update should be spread across the next minute.
+     *                        This is used to prevent running into the global ratelimit
+     */
     private synchronized void updateMultipleGiveaways(List<GiveawayEntity> activeGiveaways,
         boolean schedule) {
         List<GiveawayEntity> filtered = new ArrayList<>(activeGiveaways);
         filtered.removeIf(entity -> endingGiveaways.contains(entity.getId()));
         if (!schedule) {
-            filtered.forEach(this::doUpdate);
+            filtered.forEach(this::renderGiveaway);
         } else {
             log.debug("Queueing giveaway updates over the next 60 seconds");
             Map<Long, List<GiveawayEntity>> bucketed = new HashMap<>();
@@ -335,13 +353,18 @@ public class GiveawayManager implements GiveawayService {
             });
             bucketed.forEach((key, value) -> {
                 log.debug(" - {}: {} giveaways", key, value.size());
-                taskScheduler.schedule(() -> value.forEach(this::doUpdate),
+                taskScheduler.schedule(() -> value.forEach(this::renderGiveaway),
                     Instant.now().plusSeconds(key));
             });
         }
     }
 
-    private void doUpdate(GiveawayEntity entity) {
+    /**
+     * Renders a giveaway's embed
+     *
+     * @param entity The giveaway to render
+     */
+    private void renderGiveaway(GiveawayEntity entity) {
         log.debug("Updating {}", entity);
         TextChannel c = shardManager.getTextChannelById(entity.getChannelId());
         if (c != null) {
@@ -355,7 +378,10 @@ public class GiveawayManager implements GiveawayService {
         }
     }
 
-    private void updateEndedGiveaways() {
+    /**
+     * Ends all running giveaways whose end time is before 1.5s from now
+     */
+    private void endEndedGiveaways() {
         List<GiveawayEntity> endingGiveaways = giveawayRepository
             .findAllByEndsAtBeforeAndStateIs(
                 new Timestamp(Instant.now().plusSeconds(1).plusMillis(500).toEpochMilli()),
@@ -363,10 +389,23 @@ public class GiveawayManager implements GiveawayService {
         endingGiveaways.forEach(this::endGiveaway);
     }
 
+    /**
+     * Ends the provided giveaway
+     *
+     * @param giveaway The giveaway to end
+     */
     private void endGiveaway(GiveawayEntity giveaway) {
         endGiveaway(giveaway, false);
     }
 
+    /**
+     * Generates a series of messages used for the giveaway ending
+     *
+     * @param entity         The entity to generate the giveaways from
+     * @param includeMsgLink If a message link should be included
+     *
+     * @return A list of messages that should be sent to announce the end of the giveaway
+     */
     private List<String> generateEndMessage(GiveawayEntity entity, boolean includeMsgLink) {
         String msgLink = String
             .format("<https://discordapp.com/channels/%s/%s/%s>", entity.getGuildId(),
@@ -416,16 +455,6 @@ public class GiveawayManager implements GiveawayService {
         return messages;
     }
 
-    private void queueRender(GiveawayEntity giveawayEntity) {
-        TextChannel c = shardManager.getTextChannelById(giveawayEntity.getChannelId());
-        if (c == null) {
-            return;
-        }
-        c.retrieveMessageById(giveawayEntity.getMessageId())
-            .queue(msg -> msg.editMessage(GiveawayEmbedUtils.renderMessage(giveawayEntity)).queue(),
-                throwable -> log.warn("Could not queue render for {}", giveawayEntity, throwable));
-    }
-
     private synchronized void endGiveaway(GiveawayEntity giveaway, boolean reroll) {
         if (endingGiveaways.contains(giveaway.getId())) {
             log.debug("Giveaway {} is alrady ending", giveaway);
@@ -447,7 +476,7 @@ public class GiveawayManager implements GiveawayService {
                             giveaway);
                         return;
                     }
-                    queueRender(giveaway);
+                    renderGiveaway(giveaway);
                     long standaloneQueueSize = 0;
                     while (backfillService.isBackfilling(giveaway)
                         || (standaloneQueueSize = rqs.queueSize(giveaway.getId())) > 0) {
@@ -475,7 +504,7 @@ public class GiveawayManager implements GiveawayService {
                     generateEndMessage(giveaway, includeLink)
                         .forEach(msg -> channel.sendMessage(msg).queue());
                     giveaway.setState(GiveawayState.ENDED);
-                    queueRender(giveaway);
+                    renderGiveaway(giveaway);
                 }
             } catch (Exception e) {
                 log.error("Error ending giveaway {}", giveaway, e);
@@ -489,6 +518,13 @@ public class GiveawayManager implements GiveawayService {
         });
     }
 
+    /**
+     * Checks if the given reaction emote is the giveaway reaction emote
+     *
+     * @param emote The reaction emote
+     *
+     * @return True if the reaction emote is a giveaway reaction emote
+     */
     private boolean isGiveawayEmote(ReactionEmote emote) {
         if (emote.isEmote() != custom) {
             return false;
