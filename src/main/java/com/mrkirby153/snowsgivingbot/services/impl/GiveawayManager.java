@@ -592,23 +592,26 @@ public class GiveawayManager implements GiveawayService {
         private final PriorityBlockingQueue<QueuedRender> queue = new PriorityBlockingQueue<>(11,
             Comparator.comparingLong(QueuedRender::getUpdateAt));
 
+        private final Object futureLock = new Object();
         private ScheduledFuture<?> future = null;
         private long nextRun = 0L;
         private long nextRunId = 0L;
 
         public void onUpdate() {
             log.debug("Running queue update");
-            while (queue.peek() != null && queue.peek().updateAt < System.currentTimeMillis()) {
-                QueuedRender toRender = queue.poll();
-                if (toRender == null) {
-                    continue;
+            synchronized (futureLock) {
+                while (queue.peek() != null && queue.peek().updateAt < System.currentTimeMillis()) {
+                    QueuedRender toRender = queue.poll();
+                    if (toRender == null) {
+                        continue;
+                    }
+                    renderGiveaway(toRender.entity);
                 }
-                renderGiveaway(toRender.entity);
+                log.debug("Queue update ran");
+                future = null;
+                nextRun = 0L;
+                nextRunId = 0L;
             }
-            log.debug("Queue update ran");
-            future = null;
-            nextRun = 0L;
-            nextRunId = 0L;
             updateFuture();
         }
 
@@ -654,16 +657,18 @@ public class GiveawayManager implements GiveawayService {
                     log.debug("Not rescheduling");
                     return;
                 }
-                if (future != null) {
-                    log.debug("Aborting scheduled render");
-                    future.cancel(false);
+                synchronized (futureLock) {
+                    if (future != null) {
+                        log.debug("Aborting scheduled render");
+                        future.cancel(false);
+                    }
+                    long diff = next.updateAt - System.currentTimeMillis();
+                    log.debug("Scheduling render: {}", Time.format(1, diff));
+                    Instant nextRunTime = Instant.now().plusMillis(diff);
+                    future = taskScheduler.schedule(this::onUpdate, nextRunTime);
+                    nextRun = nextRunTime.toEpochMilli();
+                    nextRunId = next.getEntity().getId();
                 }
-                long diff = next.updateAt - System.currentTimeMillis();
-                log.debug("Scheduling render: {}", Time.format(1, diff));
-                Instant nextRunTime = Instant.now().plusMillis(diff);
-                future = taskScheduler.schedule(this::onUpdate, nextRunTime);
-                nextRun = nextRunTime.toEpochMilli();
-                nextRunId = next.getEntity().getId();
             } else {
                 log.debug("Not rescheduling render");
             }
