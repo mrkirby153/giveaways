@@ -13,6 +13,7 @@ import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
 import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import com.mrkirby153.snowsgivingbot.services.backfill.BackfillTask;
 import com.mrkirby153.snowsgivingbot.services.backfill.GiveawayBackfillService;
+import com.mrkirby153.snowsgivingbot.services.setting.SettingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
@@ -36,6 +37,7 @@ public class AdminCommands {
     private final StandaloneWorkerService standaloneWorkerService;
     private final ShardManager shardManager;
     private final RedisTemplate<String, String> template;
+    private final SettingService settingService;
 
     @Command(name = "ping", clearance = 100)
     public void ping(Context context, CommandContext cmdContext) {

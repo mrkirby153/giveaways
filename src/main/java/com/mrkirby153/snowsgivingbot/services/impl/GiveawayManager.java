@@ -664,7 +664,7 @@ public class GiveawayManager implements GiveawayService {
                     }
                     long diff = next.updateAt - System.currentTimeMillis();
                     log.debug("Scheduling render: {}", Time.format(1, diff));
-                    Instant nextRunTime = Instant.now().plusMillis(diff);
+                    Instant nextRunTime = Instant.now().plusMillis(diff + 500);
                     future = taskScheduler.schedule(this::onUpdate, nextRunTime);
                     nextRun = nextRunTime.toEpochMilli();
                     nextRunId = next.getEntity().getId();
