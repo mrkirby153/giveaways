@@ -9,6 +9,8 @@ import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
+import org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair;
+import org.springframework.data.redis.serializer.RedisSerializer;
 
 import java.time.Duration;
 
@@ -44,6 +46,7 @@ public class RedisConfig {
     @Bean
     public RedisCacheConfiguration redisCacheConfiguration() {
         return RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofSeconds(120))
-            .computePrefixWith(cacheName -> "giveaways::" + cacheName + "::");
+            .serializeValuesWith(SerializationPair.fromSerializer(RedisSerializer.json()))
+            .computePrefixWith(cacheName -> "giveaways:" + cacheName + ":");
     }
 }

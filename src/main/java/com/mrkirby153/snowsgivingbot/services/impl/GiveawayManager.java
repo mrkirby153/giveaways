@@ -13,6 +13,8 @@ import com.mrkirby153.snowsgivingbot.services.GiveawayService;
 import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
 import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import com.mrkirby153.snowsgivingbot.services.backfill.GiveawayBackfillService;
+import com.mrkirby153.snowsgivingbot.services.setting.SettingService;
+import com.mrkirby153.snowsgivingbot.services.setting.Settings;
 import com.mrkirby153.snowsgivingbot.utils.GiveawayEmbedUtils;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -74,6 +76,7 @@ public class GiveawayManager implements GiveawayService {
     private final TaskExecutor taskExecutor;
     private final TaskScheduler taskScheduler;
     private final GiveawayBackfillService backfillService;
+    private final SettingService settingService;
 
     private final Map<String, GiveawayEntity> entityCache = new HashMap<>();
 
@@ -97,7 +100,8 @@ public class GiveawayManager implements GiveawayService {
         ApplicationEventPublisher aep,
         TaskExecutor taskExecutor, StandaloneWorkerService sws, RedisQueueService rqs,
         TaskScheduler taskScheduler,
-        @Lazy GiveawayBackfillService backfillService) {
+        @Lazy GiveawayBackfillService backfillService,
+        SettingService settingService) {
         this.shardManager = shardManager;
         this.entrantRepository = entrantRepository;
         this.giveawayRepository = giveawayRepository;
@@ -108,6 +112,7 @@ public class GiveawayManager implements GiveawayService {
         this.rqs = rqs;
         this.taskScheduler = taskScheduler;
         this.backfillService = backfillService;
+        this.settingService = settingService;
 
         if (emote.matches("\\d{17,18}")) {
             emoji = null;
@@ -144,10 +149,20 @@ public class GiveawayManager implements GiveawayService {
 
         channel.sendMessage(GiveawayEmbedUtils.renderMessage(entity)).queue(m -> {
             entity.setMessageId(m.getId());
-            if (custom) {
-                m.addReaction(discordService.findEmoteById(emoteId)).queue();
+            ConfiguredGiveawayEmote cge = settingService
+                .get(Settings.GIVEAWAY_EMOTE, channel.getGuild());
+            if (cge == null) {
+                if (custom) {
+                    m.addReaction(discordService.findEmoteById(emoteId)).queue();
+                } else {
+                    m.addReaction(emoji).queue();
+                }
             } else {
-                m.addReaction(emoji).queue();
+                if (cge.isCustom()) {
+                    m.addReaction(discordService.findEmoteById(cge.getEmote())).queue();
+                } else {
+                    m.addReaction(cge.getEmote()).queue();
+                }
             }
             GiveawayEntity save = giveawayRepository.save(entity);
             publisher.publishEvent(new GiveawayStartedEvent(save));
@@ -532,14 +547,26 @@ public class GiveawayManager implements GiveawayService {
      *
      * @return True if the reaction emote is a giveaway reaction emote
      */
-    private boolean isGiveawayEmote(ReactionEmote emote) {
-        if (emote.isEmote() != custom) {
-            return false;
-        }
-        if (custom) {
-            return emote.getEmote().getId().equals(this.emoteId);
+    private boolean isGiveawayEmote(Guild guild, ReactionEmote emote) {
+        ConfiguredGiveawayEmote configured = settingService.get(Settings.GIVEAWAY_EMOTE, guild);
+        if (configured == null) {
+            if (emote.isEmote() != custom) {
+                return false;
+            }
+            if (custom) {
+                return emote.getEmote().getId().equals(this.emoteId);
+            } else {
+                return emote.getEmoji().equals(this.emoji);
+            }
         } else {
-            return emote.getEmoji().equals(this.emoji);
+            if (emote.isEmote() != configured.isCustom()) {
+                return false;
+            }
+            if (configured.isCustom()) {
+                return emote.getEmote().getId().equals(configured.getEmote());
+            } else {
+                return emote.getEmoji().equals(configured.getEmote());
+            }
         }
     }
 
@@ -552,7 +579,7 @@ public class GiveawayManager implements GiveawayService {
         if (event.getUser().isBot() || event.getUser().isFake()) {
             return; // Ignore bots and fake users
         }
-        if (isGiveawayEmote(event.getReactionEmote())) {
+        if (isGiveawayEmote(event.getGuild(), event.getReactionEmote())) {
             GiveawayEntity cached = entityCache.get(event.getMessageId());
             if (cached == null) {
                 log.debug("Cache miss. Looking up giveaway entity");
@@ -652,7 +679,7 @@ public class GiveawayManager implements GiveawayService {
                 return;
             }
             if (next.updateAt < nextRun || nextRun == 0L) {
-                if(nextRunId == next.getEntity().getId()) {
+                if (nextRunId == next.getEntity().getId()) {
                     // We're rescheduling the same thing
                     log.debug("Not rescheduling");
                     return;

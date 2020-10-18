@@ -11,4 +11,8 @@ public interface SettingService {
     <T> T get(GuildSetting<T> setting, Guild guild);
 
     <T> T get(GuildSetting<T> setting, String guildId);
+
+    void reset(GuildSetting<?> setting, Guild guild);
+
+    void reset(GuildSetting<?> setting, String  guildId);
 }

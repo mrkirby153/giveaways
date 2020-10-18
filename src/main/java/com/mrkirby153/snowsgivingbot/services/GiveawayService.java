@@ -1,6 +1,9 @@
 package com.mrkirby153.snowsgivingbot.services;
 
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import net.dv8tion.jda.api.entities.Emote;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.TextChannel;
@@ -58,7 +61,8 @@ public interface GiveawayService {
      *
      * @return The list of winners
      */
-    List<String> determineWinners(GiveawayEntity giveaway, List<String> existingWinners, int amount);
+    List<String> determineWinners(GiveawayEntity giveaway, List<String> existingWinners,
+        int amount);
 
     /**
      * Immediately ends the giveaway with the provided message id
@@ -116,4 +120,13 @@ public interface GiveawayService {
      * @param entity The giveaway to update
      */
     void update(GiveawayEntity entity);
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    class ConfiguredGiveawayEmote {
+
+        private boolean custom;
+        private String emote;
+    }
 }

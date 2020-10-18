@@ -24,6 +24,7 @@ public class CommandManager {
         commands.add(AdminCommands.class);
         commands.add(HelpCommand.class);
         commands.add(InfoCommand.class);
+        commands.add(ManagementCommands.class);
     }
 
     private final CommandExecutor executor;

@@ -12,4 +12,6 @@ public interface SettingsRepository extends JpaRepository<SettingEntity, Long> {
     Optional<SettingEntity> getByGuildAndKey(String guildId, String key);
 
     List<SettingEntity> getAllByGuild(String guildId);
+
+    void deleteByGuildAndKey(String guildId, String key);
 }
