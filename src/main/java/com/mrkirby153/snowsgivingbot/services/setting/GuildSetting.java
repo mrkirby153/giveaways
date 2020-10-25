@@ -35,5 +35,5 @@ public interface GuildSetting<T> {
      *
      * @return The JSON representation of the object
      */
-    String serialize(T obj);
+    String serialize(Object obj);
 }

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 import javax.annotation.PostConstruct;
+import javax.transaction.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -30,13 +31,13 @@ public class SettingManager implements SettingService {
 
     @Override
     @CacheEvict(cacheNames = "settings", key = "#p0.getKey()+'-'+#p1.getId()")
-    public <T> void set(GuildSetting<T> setting, Guild guild, T value) {
+    public void set(GuildSetting<?> setting, Guild guild, Object value) {
         set(setting, guild.getId(), value);
     }
 
     @Override
     @CacheEvict(cacheNames = "settings", key = "#p0.getKey()+'-'+#p1")
-    public <T> void set(GuildSetting<T> setting, String guildId, T value) {
+    public void set(GuildSetting<?> setting, String guildId, Object value) {
         final String key = setting.getKey();
         log.debug("Setting {} = {} on {}", key, value, guildId);
         Optional<SettingEntity> existing = settingsRepository
@@ -77,12 +78,14 @@ public class SettingManager implements SettingService {
 
     @Override
     @CacheEvict(cacheNames = "settings", key = "#p0.getKey()+'-'+#p1.getId()")
+    @Transactional
     public void reset(GuildSetting<?> setting, Guild guild) {
         reset(setting, guild.getId());
     }
 
     @Override
     @CacheEvict(cacheNames = "settings", key = "#p0.getKey()+'-'+#p1")
+    @Transactional
     public void reset(GuildSetting<?> setting, String guildId) {
         log.debug("Resetting {} on {}", setting.getKey(), guildId);
         settingsRepository.deleteByGuildAndKey(guildId, setting.getKey());

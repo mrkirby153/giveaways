@@ -18,7 +18,7 @@ public class LongSetting extends AbstractSetting<Long> {
     }
 
     @Override
-    public String serialize(Long obj) {
+    public String serialize(Object obj) {
         return obj.toString();
     }
 }

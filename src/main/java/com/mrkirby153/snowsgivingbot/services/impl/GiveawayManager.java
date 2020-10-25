@@ -23,11 +23,14 @@ import me.mrkirby153.kcutils.Time;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Emote;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageReaction.ReactionEmote;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.events.message.MessageDeleteEvent;
 import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
+import net.dv8tion.jda.api.exceptions.ErrorResponseException;
+import net.dv8tion.jda.api.requests.ErrorResponse;
 import net.dv8tion.jda.api.sharding.ShardManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -57,6 +60,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.transaction.Transactional;
 
@@ -149,21 +153,7 @@ public class GiveawayManager implements GiveawayService {
 
         channel.sendMessage(GiveawayEmbedUtils.renderMessage(entity)).queue(m -> {
             entity.setMessageId(m.getId());
-            ConfiguredGiveawayEmote cge = settingService
-                .get(Settings.GIVEAWAY_EMOTE, channel.getGuild());
-            if (cge == null) {
-                if (custom) {
-                    m.addReaction(discordService.findEmoteById(emoteId)).queue();
-                } else {
-                    m.addReaction(emoji).queue();
-                }
-            } else {
-                if (cge.isCustom()) {
-                    m.addReaction(discordService.findEmoteById(cge.getEmote())).queue();
-                } else {
-                    m.addReaction(cge.getEmote()).queue();
-                }
-            }
+            addGiveawayEmote(m);
             GiveawayEntity save = giveawayRepository.save(entity);
             publisher.publishEvent(new GiveawayStartedEvent(save));
             cf.complete(save);
@@ -396,6 +386,54 @@ public class GiveawayManager implements GiveawayService {
                 c.retrieveMessageById(entity.getMessageId()).queue(m -> {
                     m.editMessage(GiveawayEmbedUtils.renderMessage(entity)).queue();
                 });
+            }
+        }
+    }
+
+    /**
+     * Adds the giveaway emote to the given message
+     *
+     * @param message The message to add the emote to
+     */
+    private void addGiveawayEmote(Message message) {
+        addGiveawayEmote(message, false);
+    }
+
+    /**
+     * Adds the giveaway emote to the given message.
+     *
+     * If a custom emote is set up and it fails to apply, it will  be reset and the default emote
+     * added.
+     *
+     * @param message      The message to add the emote to
+     * @param forceDefault If the default emote should be forced
+     */
+    private void addGiveawayEmote(Message message, boolean forceDefault) {
+        ConfiguredGiveawayEmote cge = settingService
+            .get(Settings.GIVEAWAY_EMOTE, message.getGuild());
+        if (cge == null || forceDefault) {
+            if (custom) {
+                message.addReaction(discordService.findEmoteById(emoteId)).queue();
+            } else {
+                message.addReaction(emoji).queue();
+            }
+        } else {
+            Consumer<? super Throwable> errorHandler = throwable -> {
+                if (throwable instanceof ErrorResponseException
+                    && ((ErrorResponseException) throwable).getErrorResponse()
+                    == ErrorResponse.UNKNOWN_EMOJI) {
+                    log.debug(
+                        "Custom giveaway emote on {} did not apply correctly, resetting to default",
+                        message.getGuild());
+                    addGiveawayEmote(message, true);
+                    settingService.reset(Settings.GIVEAWAY_EMOTE, message.getGuild());
+                }
+            };
+            if (cge.isCustom()) {
+                message.addReaction(discordService.findEmoteById(cge.getEmote()))
+                    .queue(null, errorHandler);
+            } else {
+                message.addReaction(cge.getEmote()).queue(null, errorHandler);
             }
         }
     }

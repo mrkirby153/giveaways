@@ -4,9 +4,9 @@ import net.dv8tion.jda.api.entities.Guild;
 
 public interface SettingService {
 
-    <T> void set(GuildSetting<T> setting, Guild guild, T value);
+    void set(GuildSetting<?> setting, Guild guild, Object value);
 
-    <T> void set(GuildSetting<T> setting, String guildId, T value);
+    void set(GuildSetting<?> setting, String guildId, Object value);
 
     <T> T get(GuildSetting<T> setting, Guild guild);
 

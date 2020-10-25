@@ -44,7 +44,7 @@ public class ObjectSetting<O> extends AbstractSetting<O> {
     }
 
     @Override
-    public String serialize(O obj) {
+    public String serialize(Object obj) {
         try {
             return objectMapper.writeValueAsString(obj);
         } catch (JsonProcessingException e) {

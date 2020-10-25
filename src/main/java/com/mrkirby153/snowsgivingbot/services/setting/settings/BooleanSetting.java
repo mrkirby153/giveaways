@@ -23,7 +23,7 @@ public class BooleanSetting extends AbstractSetting<Boolean> {
     }
 
     @Override
-    public String serialize(Boolean obj) {
+    public String serialize(Object obj) {
         return obj.toString();
     }
 }

@@ -17,7 +17,7 @@ public class StringSetting extends AbstractSetting<String> {
     }
 
     @Override
-    public String serialize(String obj) {
-        return obj;
+    public String serialize(Object obj) {
+        return obj.toString();
     }
 }

@@ -18,7 +18,7 @@ public class DoubleSetting extends AbstractSetting<Double> {
     }
 
     @Override
-    public String serialize(Double obj) {
+    public String serialize(Object obj) {
         return obj.toString();
     }
 }
