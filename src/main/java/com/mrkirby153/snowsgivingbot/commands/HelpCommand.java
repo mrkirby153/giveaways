@@ -3,6 +3,8 @@ package com.mrkirby153.snowsgivingbot.commands;
 import com.mrkirby153.botcore.command.Command;
 import com.mrkirby153.botcore.command.Context;
 import com.mrkirby153.botcore.command.args.CommandContext;
+import com.mrkirby153.snowsgivingbot.services.setting.SettingService;
+import com.mrkirby153.snowsgivingbot.services.setting.Settings;
 import net.dv8tion.jda.api.EmbedBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -15,19 +17,18 @@ public class HelpCommand {
     public static final String DEFAULT_PERMISSIONS = "379968";
     public static final String DISCORD_OAUTH_INVITE = "https://discord.com/api/oauth2/authorize?client_id=%s&permissions=%s&scope=bot";
 
-    private final String prefix;
+    private final SettingService settingService;
     private final String dashUrlFormat;
     private final String permissions;
     private final String supportInvite;
 
-    public HelpCommand(@Value("${bot.prefix:!}") String prefix,
-        @Value("${bot.dash-url-format}") String dashUrlFormat,
+    public HelpCommand(@Value("${bot.dash-url-format}") String dashUrlFormat,
         @Value("${bot.permissions:" + DEFAULT_PERMISSIONS + "}") String permissions,
-        @Value("${bot.support-server:}") String supportInvite) {
-        this.prefix = prefix;
+        @Value("${bot.support-server:}") String supportInvite, SettingService settingService) {
         this.dashUrlFormat = dashUrlFormat;
         this.permissions = permissions;
         this.supportInvite = supportInvite;
+        this.settingService = settingService;
     }
 
     @Command(name = "help", clearance = 100)
@@ -35,6 +36,7 @@ public class HelpCommand {
         EmbedBuilder builder = new EmbedBuilder();
         builder.setTitle(String.format("%s Help", context.getJDA().getSelfUser().getName()));
         StringBuilder desc = new StringBuilder();
+        String prefix = settingService.get(Settings.COMMAND_PREFIX, context.getGuild());
         desc.append("**Commands**\n");
         desc.append(prefix).append(
             "start <duration> [winners] <prize> - Starts a giveaway in the current channel. (Example: `")
@@ -76,6 +78,7 @@ public class HelpCommand {
 
     @Command(name = "invite")
     public void invite(Context context, CommandContext commandContext) {
+        String prefix = settingService.get(Settings.COMMAND_PREFIX, context.getGuild());
         EmbedBuilder builder = new EmbedBuilder();
         builder.setTitle(String.format("%s Invite", context.getJDA().getSelfUser().getName()));
         builder.setDescription("You can invite me to your server by clicking [here](" + String

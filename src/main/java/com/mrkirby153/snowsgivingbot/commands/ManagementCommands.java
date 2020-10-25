@@ -33,13 +33,11 @@ public class ManagementCommands {
 
     static {
         settingMap.put("emote", Settings.GIVEAWAY_EMOTE);
+        settingMap.put("prefix", Settings.COMMAND_PREFIX);
     }
 
     private final SettingService settingService;
     private final ShardManager shardManager;
-
-    @Value("${bot.prefix:!}")
-    private String prefix;
 
     @Value("${bot.reaction:" + TADA + "}")
     private String defaultEmote;
@@ -50,7 +48,7 @@ public class ManagementCommands {
         String botName = context.getJDA().getSelfUser().getName();
         eb.setTitle(botName + " Settings");
         eb.setColor(Color.BLUE);
-        eb.setDescription("Below is the settings for this server. Use `" + prefix
+        eb.setDescription("Below is the settings for this server. Use `" + settingService.get(Settings.COMMAND_PREFIX, context.getGuild())
             + "configure set <option> <value>` to change");
 
         // Giveaway emote
@@ -110,6 +108,10 @@ public class ManagementCommands {
             context.getChannel().sendMessage("Emote has been set to " + str).queue();
             // TODO: 10/17/20 This does not affect existing giveaways, it should.
             // TODO: 10/17/20 There should also be some sanity checking to ensure they're actually emotes
+        }
+        if (key.equalsIgnoreCase("prefix")) {
+            settingService.set(Settings.COMMAND_PREFIX, context.getGuild(), value);
+            context.getChannel().sendMessage("Prefix has been changed!").queue();
         }
     }
 
