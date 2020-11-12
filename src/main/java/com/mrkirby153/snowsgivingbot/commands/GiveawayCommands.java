@@ -285,7 +285,7 @@ public class GiveawayCommands {
                 csv.append(giveawayEntity.getChannelId()).append(",");
             }
             csv.append(giveawayEntity.getWinners()).append(",").append("\"")
-                .append(giveawayEntity.getFinalWinners()).append("\"\n");
+                .append(String.join(",", giveawayEntity.getFinalWinners())).append("\"\n");
         });
         context.getChannel().sendFile(csv.toString().getBytes(), "giveaways.csv").queue();
     }
