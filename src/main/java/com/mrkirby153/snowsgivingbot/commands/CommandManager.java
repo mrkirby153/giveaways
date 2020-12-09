@@ -32,6 +32,7 @@ public class CommandManager {
 
     @EventListener
     public void onReady(AllShardsReadyEvent event) {
+        // TODO: 10/31/20 We should register these commands when one shard becomes ready
         log.info("Registering {} command classes", commands.size());
         commands.forEach(clazz -> {
             log.debug("Registering {}", clazz);

@@ -6,6 +6,7 @@ import com.mrkirby153.botcore.command.args.CommandContext;
 import com.mrkirby153.snowsgivingbot.services.setting.SettingService;
 import com.mrkirby153.snowsgivingbot.services.setting.Settings;
 import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.Permission;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -31,7 +32,7 @@ public class HelpCommand {
         this.settingService = settingService;
     }
 
-    @Command(name = "help", clearance = 100)
+    @Command(name = "help", clearance = 100, permissions = {Permission.MESSAGE_EMBED_LINKS})
     public void help(Context context, CommandContext commandContext) {
         EmbedBuilder builder = new EmbedBuilder();
         builder.setTitle(String.format("%s Help", context.getJDA().getSelfUser().getName()));
@@ -76,7 +77,7 @@ public class HelpCommand {
         context.getChannel().sendMessage(builder.build()).queue();
     }
 
-    @Command(name = "invite")
+    @Command(name = "invite", permissions = {Permission.MESSAGE_EMBED_LINKS})
     public void invite(Context context, CommandContext commandContext) {
         String prefix = settingService.get(Settings.COMMAND_PREFIX, context.getGuild());
         EmbedBuilder builder = new EmbedBuilder();

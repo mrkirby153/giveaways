@@ -12,6 +12,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Emote;
 import net.dv8tion.jda.api.sharding.ShardManager;
 import org.springframework.beans.factory.annotation.Value;
@@ -90,7 +91,7 @@ public class ManagementCommands {
             }));
     }
 
-    @Command(name = "configure", clearance = 100)
+    @Command(name = "configure", clearance = 100, permissions = {Permission.MESSAGE_EMBED_LINKS})
     public void getAllSettings(Context context, CommandContext cmdContext) {
         EmbedBuilder eb = new EmbedBuilder();
         String botName = context.getJDA().getSelfUser().getName();

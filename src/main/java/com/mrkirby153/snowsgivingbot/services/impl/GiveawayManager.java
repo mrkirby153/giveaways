@@ -8,6 +8,7 @@ import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import com.mrkirby153.snowsgivingbot.event.GiveawayEndedEvent;
 import com.mrkirby153.snowsgivingbot.event.GiveawayStartedEvent;
+import com.mrkirby153.snowsgivingbot.services.AdminLoggerService;
 import com.mrkirby153.snowsgivingbot.services.DiscordService;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService;
 import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
@@ -81,6 +82,7 @@ public class GiveawayManager implements GiveawayService {
     private final TaskScheduler taskScheduler;
     private final GiveawayBackfillService backfillService;
     private final SettingService settingService;
+    private final AdminLoggerService adminLoggerService;
 
     private final Map<String, GiveawayEntity> entityCache = new HashMap<>();
 
@@ -105,7 +107,7 @@ public class GiveawayManager implements GiveawayService {
         TaskExecutor taskExecutor, StandaloneWorkerService sws, RedisQueueService rqs,
         TaskScheduler taskScheduler,
         @Lazy GiveawayBackfillService backfillService,
-        SettingService settingService) {
+        SettingService settingService, AdminLoggerService adminLoggerService) {
         this.shardManager = shardManager;
         this.entrantRepository = entrantRepository;
         this.giveawayRepository = giveawayRepository;
@@ -117,6 +119,7 @@ public class GiveawayManager implements GiveawayService {
         this.taskScheduler = taskScheduler;
         this.backfillService = backfillService;
         this.settingService = settingService;
+        this.adminLoggerService = adminLoggerService;
 
         if (emote.matches("\\d{17,18}")) {
             emoji = null;
@@ -540,6 +543,7 @@ public class GiveawayManager implements GiveawayService {
                     long standaloneQueueSize = 0;
                     while (backfillService.isBackfilling(giveaway)
                         || (standaloneQueueSize = rqs.queueSize(giveaway.getId())) > 0) {
+                        // TODO: 10/31/20 After 5 minutes or so we should time out and abort to prevent deadlock
                         log.debug("Giveaway is still being processed. Queue Size: {}",
                             standaloneQueueSize);
                         try {
@@ -614,8 +618,8 @@ public class GiveawayManager implements GiveawayService {
         if (sws.isStandalone(event.getGuild())) {
             return;
         }
-        if (event.getUser().isBot() || event.getUser().isFake()) {
-            return; // Ignore bots and fake users
+        if (event.getUser().isBot()) {
+            return; // Ignore bots
         }
         if (isGiveawayEmote(event.getGuild(), event.getReactionEmote())) {
             GiveawayEntity cached = entityCache.get(event.getMessageId());
@@ -716,6 +720,20 @@ public class GiveawayManager implements GiveawayService {
                 log.debug("empty render queue");
                 return;
             }
+            log.debug("Next is {} running in {}", next.getEntity().getId(),
+                next.getUpdateAt() - System.currentTimeMillis());
+            log.debug("nextRun = {}, System.currentTimeMillis() = {}, nextRunId = {}", nextRun,
+                System.currentTimeMillis(), nextRunId);
+            if (next.getUpdateAt() - System.currentTimeMillis() < -5000) {
+                // Failsafe to hopefully prevent shit getting stuck. This should trigger if we're 5 seconds behind
+                log.error("!! Render failsafe has been activated  nextRun = {}, nextRunId = {} !!",
+                    nextRun, nextRunId);
+                adminLoggerService.log(String.format(
+                    ":warning: Render failsafe has been triggered. nextRun = %d, nextRunId = %d, current time = %d",
+                    nextRun, nextRunId, System.currentTimeMillis()));
+                nextRun = 0;
+                nextRunId = 0;
+            }
             if (next.updateAt < nextRun || nextRun == 0L) {
                 if (nextRunId == next.getEntity().getId()) {
                     // We're rescheduling the same thing
@@ -728,14 +746,17 @@ public class GiveawayManager implements GiveawayService {
                         future.cancel(false);
                     }
                     long diff = next.updateAt - System.currentTimeMillis();
-                    log.debug("Scheduling render: {}", Time.format(1, diff));
+                    log.debug("Scheduling render: {} caused by {}", Time.format(1, diff),
+                        next.getEntity().getId());
                     Instant nextRunTime = Instant.now().plusMillis(diff + 500);
                     future = taskScheduler.schedule(this::onUpdate, nextRunTime);
                     nextRun = nextRunTime.toEpochMilli();
                     nextRunId = next.getEntity().getId();
                 }
             } else {
-                log.debug("Not rescheduling render");
+                log.debug(
+                    "Not rescheduling render. nextRun = {}, System.currentTimeMillis() = {}, nextRunId = {}",
+                    nextRun, System.currentTimeMillis(), nextRunId);
             }
         }
 

@@ -62,6 +62,7 @@ public class GiveawayBackfillManager implements GiveawayBackfillService {
         });
         task.setFuture(future);
         runningTasks.add(task);
+        // TODO: 10/31/20 This could cause a race condition I think if the future returns immediately
         runningGiveaways.add(giveaway.getId());
         return task;
     }
@@ -136,4 +137,5 @@ public class GiveawayBackfillManager implements GiveawayBackfillService {
         }
         runNextQueuedTask();
     }
+    // TODO 10/31/20: Backfill guilds as they become ready
 }

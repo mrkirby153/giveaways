@@ -6,6 +6,7 @@ import com.mrkirby153.botcore.command.args.CommandContext;
 import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.sharding.ShardManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -32,7 +33,7 @@ public class InfoCommand {
     }
 
 
-    @Command(name = "info")
+    @Command(name = "info", permissions = {Permission.MESSAGE_EMBED_LINKS})
     public void info(Context context, CommandContext commandContext) {
         EmbedBuilder eb = new EmbedBuilder();
         String botName = context.getJDA().getSelfUser().getName();
