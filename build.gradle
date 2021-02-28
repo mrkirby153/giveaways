@@ -39,6 +39,9 @@ dependencies {
     implementation 'org.springframework.data:spring-data-redis'
     implementation 'redis.clients:jedis:3.3.0'
 
+    implementation 'org.springframework:spring-websocket'
+    implementation 'org.springframework:spring-messaging'
+
     implementation 'org.flywaydb:flyway-core'
     compileOnly 'org.projectlombok:lombok'
     runtimeOnly 'com.h2database:h2'

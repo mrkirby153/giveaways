@@ -20,6 +20,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
             .antMatchers("/api/login").permitAll()
             .antMatchers("/api/invite").permitAll()
             .antMatchers("/api/server/*").permitAll()
+            .antMatchers("/api/ws").permitAll()
             .antMatchers("/api/**").authenticated()
             .anyRequest().permitAll();
 
