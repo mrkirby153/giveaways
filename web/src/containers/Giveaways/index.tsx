@@ -7,6 +7,7 @@ import moment from 'moment';
 import './index.scss';
 import LoginButton from "../Login/LoginButton";
 import ld_orderBy from 'lodash/orderBy';
+import {useWebsocket, useWebsocketTopic} from "../../hooks";
 
 interface MatchProps {
   server: string
@@ -23,6 +24,15 @@ const Giveaways: React.FC<MyProps> = (props) => {
     id: '',
     name: 'Loading',
     icon: null
+  })
+
+  const {send} = useWebsocket();
+
+  useWebsocketTopic('/topic/ping', msg => {
+    console.log("PONG!", msg);
+  })
+  useWebsocketTopic('/topic/ping', msg => {
+    console.log("Pong: ", msg.body);
   })
 
 
@@ -52,6 +62,10 @@ const Giveaways: React.FC<MyProps> = (props) => {
     return <Giveaway key={giveaway.id} {...giveaway}/>
   });
 
+  const onClick = () => {
+    send('/app/ping');
+  }
+
   return (
       <React.Fragment>
         <div className="container-fluid">
@@ -61,6 +75,7 @@ const Giveaways: React.FC<MyProps> = (props) => {
               {guild.icon &&
               <img src={`https://cdn.discordapp.com/icons/${serverId}/${guild.icon}.png`}
                    className="guild-icon mb-2" alt={guild.name + " icon"}/>}
+              <button className="btn btn-danger" onClick={onClick}>Ping</button>
               {!loggedIn() && <p>You need to log in before you can view the giveaway list</p>}
               <div className="mb-2">
                 <LoginButton/>

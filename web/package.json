@@ -14,6 +14,8 @@
     "@types/react": "^16.9.0",
     "@types/react-dom": "^16.9.0",
     "@types/react-router-dom": "^5.1.5",
+    "@types/sockjs-client": "^1.5.0",
+    "@types/stompjs": "^2.3.4",
     "axios": "^0.19.2",
     "bootstrap": "^4.5.0",
     "lodash": "^4.17.15",
@@ -23,6 +25,8 @@
     "react-dom": "^16.13.1",
     "react-router-dom": "^5.2.0",
     "react-scripts": "3.4.1",
+    "sockjs-client": "^1.5.0",
+    "stompjs": "^2.3.3",
     "typescript": "~3.7.2"
   },
   "scripts": {

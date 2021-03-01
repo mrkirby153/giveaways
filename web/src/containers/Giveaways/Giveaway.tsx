@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {GiveawayState} from "../../types";
 import moment from "moment";
 import './giveaway.scss';
