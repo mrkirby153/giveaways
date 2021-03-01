@@ -3,6 +3,7 @@ import {useContext, useEffect, useRef} from 'react';
 import {WebsocketInformationContext} from "./App";
 import SockJS from "sockjs-client";
 import {Nullable, WebsocketMessage, WebsocketSubscription} from "./types";
+import {JWT_KEY} from "./constants";
 
 let websocket: Nullable<Stomp.Client> = null;
 let messageQueue: WebsocketMessage[] = []
@@ -21,7 +22,9 @@ export function useWebsocket() {
       let client = Stomp.over(new SockJS(wsInformation.url));
       console.log("Setting ws", client);
       websocket = client;
-      client.connect({}, () => {
+      client.connect({
+        passcode: localStorage.getItem(JWT_KEY)
+      }, () => {
         console.log("Connected! Subscribing to topics and sending queued messages", pendingSubscriptions, messageQueue);
         pendingSubscriptions.forEach(topic => {
           let id = client.subscribe(topic.topic, topic.callback).id;

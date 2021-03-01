@@ -28,12 +28,13 @@ const Giveaways: React.FC<MyProps> = (props) => {
 
   const {send} = useWebsocket();
 
-  useWebsocketTopic('/topic/ping', msg => {
-    console.log("PONG!", msg);
-  })
-  useWebsocketTopic('/topic/ping', msg => {
-    console.log("Pong: ", msg.body);
-  })
+  // useWebsocketTopic('/topic/ping', msg => {
+  //   console.log("PONG!", msg);
+  // })
+  // useWebsocketTopic('/topic/ping', msg => {
+  //   console.log("Pong: ", msg.body);
+  // })
+  useWebsocketTopic('/topic/me', console.log)
 
 
   const getGiveaways = () => {
@@ -63,7 +64,7 @@ const Giveaways: React.FC<MyProps> = (props) => {
   });
 
   const onClick = () => {
-    send('/app/ping');
+    send('/app/me');
   }
 
   return (
