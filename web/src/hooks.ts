@@ -24,7 +24,8 @@ export function useWebsocket() {
       websocket = client;
       client.connect({
         passcode: localStorage.getItem(JWT_KEY)
-      }, () => {
+      }, (frame) => {
+        console.log("WS URL:", client.ws.url);
         console.log("Connected! Subscribing to topics and sending queued messages", pendingSubscriptions, messageQueue);
         pendingSubscriptions.forEach(topic => {
           let id = client.subscribe(topic.topic, topic.callback).id;

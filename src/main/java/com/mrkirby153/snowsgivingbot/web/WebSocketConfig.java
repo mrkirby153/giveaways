@@ -3,6 +3,7 @@ package com.mrkirby153.snowsgivingbot.web;
 import com.mrkirby153.snowsgivingbot.web.services.JwtService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -36,7 +37,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.interceptors(new ChannelInterceptor() {
             @Override
-            public Message<?> preSend(Message<?> message, MessageChannel channel) {
+            public Message<?> preSend(@NotNull Message<?> message, @NotNull MessageChannel channel) {
                 StompHeaderAccessor accessor = MessageHeaderAccessor
                     .getAccessor(message, StompHeaderAccessor.class);
                 if (StompCommand.CONNECT.equals(accessor.getCommand())) {
@@ -49,7 +50,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                                 du, null);
                             SecurityContextHolder.getContext().setAuthentication(authToken);
                             accessor.setUser(authToken);
-                            log.debug("Connection opened with user {}", du);
+                            log.debug("Connection opened with user {}", du.getUsername());
                         }
                     } catch (Exception e) {
                         // Ignore
@@ -62,7 +63,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/topic");
+        registry.enableSimpleBroker("/topic", "/queue");
         registry.setApplicationDestinationPrefixes("/app");
     }
 }

@@ -28,6 +28,8 @@ const Giveaways: React.FC<MyProps> = (props) => {
 
   const {send} = useWebsocket();
 
+  const [user, setUser] = useState("");
+
   // useWebsocketTopic('/topic/ping', msg => {
   //   console.log("PONG!", msg);
   // })
@@ -35,6 +37,7 @@ const Giveaways: React.FC<MyProps> = (props) => {
   //   console.log("Pong: ", msg.body);
   // })
   useWebsocketTopic('/topic/me', console.log)
+  useWebsocketTopic('/user/queue/testing', console.log);
 
 
   const getGiveaways = () => {
@@ -64,7 +67,7 @@ const Giveaways: React.FC<MyProps> = (props) => {
   });
 
   const onClick = () => {
-    send('/app/me');
+    send('/app/send', user);
   }
 
   return (
@@ -73,6 +76,8 @@ const Giveaways: React.FC<MyProps> = (props) => {
           <div className="row">
             <div className="col-6 offset-3">
               <h1 className="text-center">{guild.name} Giveaways</h1>
+              <input type="text" className="form-control" value={user}
+                     onChange={e => setUser(e.target.value)}/>
               {guild.icon &&
               <img src={`https://cdn.discordapp.com/icons/${serverId}/${guild.icon}.png`}
                    className="guild-icon mb-2" alt={guild.name + " icon"}/>}
