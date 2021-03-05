@@ -1,13 +1,21 @@
 import React, {useEffect, useState} from 'react';
 import {RouteComponentProps} from 'react-router-dom';
 import {axios, loggedIn} from "../../utils";
-import {Giveaway as GiveawayType, Giveaways as GiveawaysType, Guild} from "../../types";
+import {
+  Giveaway as GiveawayType,
+  Giveaways as GiveawaysType,
+  GiveawayState,
+  Guild
+} from "../../types";
 import Giveaway from "./Giveaway";
 import moment from 'moment';
 import './index.scss';
 import LoginButton from "../Login/LoginButton";
 import ld_orderBy from 'lodash/orderBy';
-import {useWebsocket, useWebsocketTopic} from "../../hooks";
+import ld_find from 'lodash/find';
+import ld_filter from 'lodash/filter';
+import {Frame} from "stompjs";
+import {useWebsocketTopic} from "../../hooks";
 
 interface MatchProps {
   server: string
@@ -26,18 +34,41 @@ const Giveaways: React.FC<MyProps> = (props) => {
     icon: null
   })
 
-  const {send} = useWebsocket();
+  function handleGiveawayStateChange(message: Frame) {
+    let data = JSON.parse(message.body);
+    switch (data.state) {
+      case "START":
+        console.log("New giveaway: ", data)
+        setGiveaways(g => {
+          let active = [...g.active];
+          active.push(data.giveaway);
+          return {
+            active,
+            inactive: g.inactive
+          };
+        });
+        break;
+      case "END":
+        console.log("Giveaway ended: ", data);
+        setGiveaways(g => {
+          let giveawayId = data.giveaway.id;
+          let target = ld_find(g.active, {id: giveawayId});
+          if(target) {
+            let newActive = ld_filter(g.active, (g) => g.id !== giveawayId);
+            let newInactive = [...g.inactive];
+            target.state = GiveawayState.ENDED;
+            newInactive.push(target);
+            return {
+              active: newActive,
+              inactive: newInactive
+            }
+          }
+          return g;
+        })
+    }
+  }
 
-  const [user, setUser] = useState("");
-
-  // useWebsocketTopic('/topic/ping', msg => {
-  //   console.log("PONG!", msg);
-  // })
-  // useWebsocketTopic('/topic/ping', msg => {
-  //   console.log("Pong: ", msg.body);
-  // })
-  useWebsocketTopic('/topic/me', console.log)
-  useWebsocketTopic('/user/queue/testing', console.log);
+  useWebsocketTopic(`/topic/${serverId}/giveaway`, handleGiveawayStateChange)
 
 
   const getGiveaways = () => {
@@ -66,9 +97,6 @@ const Giveaways: React.FC<MyProps> = (props) => {
     return <Giveaway key={giveaway.id} {...giveaway}/>
   });
 
-  const onClick = () => {
-    send('/app/send', user);
-  }
 
   return (
       <React.Fragment>
@@ -76,12 +104,9 @@ const Giveaways: React.FC<MyProps> = (props) => {
           <div className="row">
             <div className="col-6 offset-3">
               <h1 className="text-center">{guild.name} Giveaways</h1>
-              <input type="text" className="form-control" value={user}
-                     onChange={e => setUser(e.target.value)}/>
               {guild.icon &&
               <img src={`https://cdn.discordapp.com/icons/${serverId}/${guild.icon}.png`}
                    className="guild-icon mb-2" alt={guild.name + " icon"}/>}
-              <button className="btn btn-danger" onClick={onClick}>Ping</button>
               {!loggedIn() && <p>You need to log in before you can view the giveaway list</p>}
               <div className="mb-2">
                 <LoginButton/>

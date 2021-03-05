@@ -33,7 +33,7 @@ export function useWebsocket() {
         console.groupCollapsed("Pending Subscriptions")
         pendingSubscriptions.forEach(topic => {
           let id = client.subscribe(topic.topic, topic.callback).id;
-          console.debug(`Subscribed to ${topic}: ${topic.id} => ${id}`)
+          console.debug(`Subscribed to ${topic.topic}: ${topic.id} => ${id}`)
           subMap.set(topic.id, id);
         })
         console.groupEnd();
@@ -113,5 +113,5 @@ export function useWebsocketTopic(topic: string, callback: (message: Frame) => a
       unsubscribe(subId.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [callback, subscribe, topic, unsubscribe, ...effects]);
+  }, [topic, ...effects]);
 }

@@ -7,6 +7,7 @@ import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import com.mrkirby153.snowsgivingbot.event.GiveawayEndedEvent;
+import com.mrkirby153.snowsgivingbot.event.GiveawayEnterEvent;
 import com.mrkirby153.snowsgivingbot.event.GiveawayStartedEvent;
 import com.mrkirby153.snowsgivingbot.services.AdminLoggerService;
 import com.mrkirby153.snowsgivingbot.services.DiscordService;
@@ -270,6 +271,7 @@ public class GiveawayManager implements GiveawayService {
             log.debug("Entering {} into {}", user, entity);
             GiveawayEntrantEntity gee = new GiveawayEntrantEntity(entity, user.getId());
             entrantRepository.save(gee);
+            publisher.publishEvent(new GiveawayEnterEvent(user, entity));
         }
     }
 

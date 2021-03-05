@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React from 'react';
 import {GiveawayState} from "../../types";
 import moment from "moment";
 import './giveaway.scss';
@@ -14,7 +14,7 @@ interface Props {
 }
 
 const Giveaway: React.FC<Props> = (props) => {
-  let ended = moment(props.endsAt).isBefore(moment())
+  let ended = moment(props.endsAt).isBefore(moment()) || props.state === GiveawayState.ENDED
   return (
       <div className="row">
         <div className="col-12 mb-2">
