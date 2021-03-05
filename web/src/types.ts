@@ -44,9 +44,9 @@ export interface WebsocketMessage {
 }
 
 export interface WebsocketSubscription {
+  id: number,
   topic: string,
   callback: (message: Frame) => any,
-  pending: (value?: (string | PromiseLike<string> | undefined)) => void
 }
 
 export type Nullable<T> = T | null;
