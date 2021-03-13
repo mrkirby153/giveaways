@@ -23,7 +23,7 @@ import org.springframework.stereotype.Service;
 public class GiveawayWebsocketController {
 
     private static final String GIVEAWAY_STATE_FORMAT = "/topic/%s/giveaway";
-    private static final String USER_ENTER_GIVEAWAY_TOPIC = "/queue/giveaway/user";
+    private static final String USER_ENTER_GIVEAWAY_TOPIC = "/queue/giveaway/%s/user";
 
     private final SimpMessagingTemplate messagingTemplate;
     private final ShardManager shardManager;
@@ -55,7 +55,7 @@ public class GiveawayWebsocketController {
         User u = event.getUser();
         GiveawayEntity g = event.getGiveaway();
         log.debug("Sending enter of {} to giveaway {}", u, g);
-        messagingTemplate.convertAndSendToUser(u.getId(), USER_ENTER_GIVEAWAY_TOPIC,
+        messagingTemplate.convertAndSendToUser(u.getId(), String.format(USER_ENTER_GIVEAWAY_TOPIC, g.getGuildId()),
             new GiveawayEnterWSEvent(u.getId(),
                 new GiveawayDto(event.getGiveaway(), getChannelName(event.getGiveaway()), true)));
     }

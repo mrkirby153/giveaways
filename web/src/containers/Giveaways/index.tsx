@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useContext, useEffect, useState} from 'react';
 import {RouteComponentProps} from 'react-router-dom';
 import {axios, loggedIn} from "../../utils";
 import {
@@ -14,8 +14,11 @@ import LoginButton from "../Login/LoginButton";
 import ld_orderBy from 'lodash/orderBy';
 import ld_find from 'lodash/find';
 import ld_filter from 'lodash/filter';
+import ld_findIndex from 'lodash/findIndex';
+import ld_cloneDeep from 'lodash/cloneDeep';
 import {Frame} from "stompjs";
 import {useWebsocketTopic} from "../../hooks";
+import {UserContext} from "../../App";
 
 interface MatchProps {
   server: string
@@ -34,7 +37,7 @@ const Giveaways: React.FC<MyProps> = (props) => {
     icon: null
   })
 
-  function handleGiveawayStateChange(message: Frame) {
+  const handleGiveawayStateChange = (message: Frame) => {
     let data = JSON.parse(message.body);
     switch (data.state) {
       case "START":
@@ -53,10 +56,11 @@ const Giveaways: React.FC<MyProps> = (props) => {
         setGiveaways(g => {
           let giveawayId = data.giveaway.id;
           let target = ld_find(g.active, {id: giveawayId});
-          if(target) {
+          if (target) {
             let newActive = ld_filter(g.active, (g) => g.id !== giveawayId);
             let newInactive = [...g.inactive];
             target.state = GiveawayState.ENDED;
+            target.endsAt = data.giveaway.endsAt;
             newInactive.push(target);
             return {
               active: newActive,
@@ -68,7 +72,20 @@ const Giveaways: React.FC<MyProps> = (props) => {
     }
   }
 
+  const handleGiveawayEnter = (frame: Frame) => {
+    let data = JSON.parse(frame.body);
+    setGiveaways(g => {
+      let target = ld_findIndex(g.active, {id: data.giveaway.id});
+      if (target == -1) {
+        return g; // Giveaway not found, no longer active, or from a different server
+      }
+      let newGiveaways = ld_cloneDeep(g);
+      newGiveaways.active[target].entered = true;
+      return newGiveaways;
+    })
+  }
   useWebsocketTopic(`/topic/${serverId}/giveaway`, handleGiveawayStateChange)
+  useWebsocketTopic(`/user/queue/giveaway/${serverId}/user`, handleGiveawayEnter)
 
 
   const getGiveaways = () => {

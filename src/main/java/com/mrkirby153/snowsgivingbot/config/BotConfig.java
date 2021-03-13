@@ -97,7 +97,7 @@ public class BotConfig {
                     // TODO: 5/20/20 Investigate this
                     taskScheduler
                         .schedule(() -> eventPublisher.publishEvent(new AllShardsReadyEvent()),
-                            Instant.now().plusMillis(500));
+                            Instant.now().plusMillis(1500));
                 } else {
                     eventPublisher.publishEvent(new AllShardsReadyEvent());
                 }
