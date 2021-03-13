@@ -36,6 +36,7 @@ const Giveaways: React.FC<MyProps> = (props) => {
     name: 'Loading',
     icon: null
   })
+  const user = useContext(UserContext);
 
   const handleGiveawayStateChange = (message: Frame) => {
     let data = JSON.parse(message.body);
@@ -84,8 +85,8 @@ const Giveaways: React.FC<MyProps> = (props) => {
       return newGiveaways;
     })
   }
-  useWebsocketTopic(`/topic/${serverId}/giveaway`, handleGiveawayStateChange)
-  useWebsocketTopic(`/user/queue/giveaway/${serverId}/user`, handleGiveawayEnter)
+  useWebsocketTopic(`/topic/${serverId}/giveaway`, handleGiveawayStateChange, [], user != null);
+  useWebsocketTopic(`/user/queue/giveaway/${serverId}/user`, handleGiveawayEnter, [], user != null);
 
 
   const getGiveaways = () => {

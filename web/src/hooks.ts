@@ -103,15 +103,18 @@ export function useWebsocket() {
   return {send, subscribe, unsubscribe}
 }
 
-export function useWebsocketTopic(topic: string, callback: (message: Frame) => any, effects: any[] = []) {
+export function useWebsocketTopic(topic: string, callback: (message: Frame) => any, effects: any[] = [], enabled: boolean = true) {
   let {subscribe, unsubscribe} = useWebsocket();
   let subId = useRef(-1);
   useEffect(() => {
+    if(!enabled) {
+      return;
+    }
     subId.current = subscribe(topic, callback);
     return () => {
       console.debug("Unsubscribing", subId.current);
       unsubscribe(subId.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topic, ...effects]);
+  }, [topic, enabled, ...effects]);
 }
