@@ -1,4 +1,4 @@
-import React, {Dispatch, SetStateAction, useEffect, useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {BrowserRouter, Route, Switch} from "react-router-dom";
 import routes from './routes';
 

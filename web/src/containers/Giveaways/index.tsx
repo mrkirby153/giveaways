@@ -77,7 +77,7 @@ const Giveaways: React.FC<MyProps> = (props) => {
     let data = JSON.parse(frame.body);
     setGiveaways(g => {
       let target = ld_findIndex(g.active, {id: data.giveaway.id});
-      if (target == -1) {
+      if (target === -1) {
         return g; // Giveaway not found, no longer active, or from a different server
       }
       let newGiveaways = ld_cloneDeep(g);
