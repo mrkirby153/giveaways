@@ -4,6 +4,7 @@
   "private": true,
   "proxy": "http://localhost:8080",
   "dependencies": {
+    "@stomp/stompjs": "^6.1.0",
     "@testing-library/jest-dom": "^4.2.4",
     "@testing-library/react": "^9.3.2",
     "@testing-library/user-event": "^7.1.2",
@@ -26,7 +27,6 @@
     "react-router-dom": "^5.2.0",
     "react-scripts": "3.4.1",
     "sockjs-client": "^1.5.0",
-    "stompjs": "^2.3.3",
     "typescript": "~3.7.2"
   },
   "scripts": {

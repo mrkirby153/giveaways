@@ -1,12 +1,12 @@
-import Stomp, {Frame} from 'stompjs';
+import {Client, IFrame} from '@stomp/stompjs';
 import {useContext, useEffect, useRef} from 'react';
 import {WebsocketInformationContext} from "./App";
-import SockJS from "sockjs-client";
 import {Nullable, WebsocketMessage, WebsocketSubscription} from "./types";
 import {JWT_KEY} from "./constants";
 import ld_remove from 'lodash/remove';
+import SockJS from "sockjs-client";
 
-let websocket: Nullable<Stomp.Client> = null;
+let websocket: Nullable<Client> = null;
 let messageQueue: WebsocketMessage[] = []
 let pendingSubscriptions: WebsocketSubscription[] = [];
 
@@ -22,34 +22,46 @@ export function useWebsocket() {
     }
     if (websocket == null) {
       console.log("Opening new websocket connection")
-      let client = Stomp.over(new SockJS(wsInformation.url));
-      console.log("Setting ws", client);
+      let client = new Client({
+        connectHeaders: {
+          passcode: localStorage.getItem(JWT_KEY) as string
+        },
+        debug: function (str) {
+          if (process.env.NODE_ENV !== "production") {
+            console.log(str)
+          }
+        },
+        webSocketFactory: function() {
+          return new SockJS(wsInformation.url);
+        }
+      });
       websocket = client;
-      client.connect({
-        passcode: localStorage.getItem(JWT_KEY)
-      }, (frame) => {
-        console.log("WS URL:", client.ws.url);
+      client.onConnect = function (frame) {
         console.log("Connected! Subscribing to topics and sending queued messages", pendingSubscriptions, messageQueue);
         console.groupCollapsed("Pending Subscriptions")
         pendingSubscriptions.forEach(topic => {
-          let id = client.subscribe(topic.topic, topic.callback).id;
+          let id = client.subscribe(topic.topic, topic.callback).id
           console.debug(`Subscribed to ${topic.topic}: ${topic.id} => ${id}`)
-          subMap.set(topic.id, id);
+          subMap.set(topic.id, id)
         })
-        console.groupEnd();
         pendingSubscriptions = [];
+        console.groupEnd();
         console.groupCollapsed("Pending Messages")
         messageQueue.forEach(msg => {
-          console.debug("Sending queued message", msg)
-          client.send(msg.topic, msg.message)
+          console.log("Sending queued message", msg);
+          client.publish({
+            destination: msg.topic,
+            body: msg.message
+          })
         })
         console.groupEnd();
         messageQueue = [];
-      })
+      }
+      client.activate();
     }
   }, [wsInformation])
 
-  const subscribe = (topic: string, callback: (message: Frame) => any): number => {
+  const subscribe = (topic: string, callback: (message: IFrame) => any): number => {
     if (!wsInformation || !wsInformation.enabled) {
       return -1;
     }
@@ -86,12 +98,16 @@ export function useWebsocket() {
     }
   }
 
-  const send = (topic: string, data: any = null) => {
+  const send = (topic: string, data: any = null, headers: any = null) => {
     if (!wsInformation || !wsInformation.enabled) {
       return;
     }
     if (websocket && websocket.connected) {
-      websocket.send(topic, {}, data);
+      websocket.publish({
+        destination: topic,
+        body: data,
+        headers
+      })
     } else {
       console.log("Deferring message until connected ", topic, data);
       messageQueue.push({
@@ -103,11 +119,11 @@ export function useWebsocket() {
   return {send, subscribe, unsubscribe}
 }
 
-export function useWebsocketTopic(topic: string, callback: (message: Frame) => any, effects: any[] = [], enabled: boolean = true) {
+export function useWebsocketTopic(topic: string, callback: (message: IFrame) => any, effects: any[] = [], enabled: boolean = true) {
   let {subscribe, unsubscribe} = useWebsocket();
   let subId = useRef(-1);
   useEffect(() => {
-    if(!enabled) {
+    if (!enabled) {
       return;
     }
     subId.current = subscribe(topic, callback);

@@ -1,4 +1,4 @@
-import {Client, Frame} from "stompjs";
+import {IFrame, Client} from "@stomp/stompjs";
 
 export interface User {
   id: string,
@@ -46,7 +46,7 @@ export interface WebsocketMessage {
 export interface WebsocketSubscription {
   id: number,
   topic: string,
-  callback: (message: Frame) => any,
+  callback: (message: IFrame) => any,
 }
 
 export type Nullable<T> = T | null;
