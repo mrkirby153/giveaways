@@ -7,6 +7,7 @@ import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import com.mrkirby153.snowsgivingbot.services.AdminLoggerService;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService;
+import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.sharding.ShardManager;
@@ -44,6 +45,7 @@ public class GiveawayBackfillManager implements GiveawayBackfillService {
     private final GiveawayRepository giveawayRepository;
     private final ShardManager shardManager;
     private final AdminLoggerService adminLogger;
+    private final StandaloneWorkerService standaloneWorkerService;
 
     @Override
     public BackfillTask startBackfill(GiveawayEntity giveaway) {
@@ -91,7 +93,7 @@ public class GiveawayBackfillManager implements GiveawayBackfillService {
 
     private void runNextQueuedTask() {
         log.info("{} pending backfills remaining", pendingBackfills.size());
-        if(pendingBackfills.size() == 0) {
+        if (pendingBackfills.size() == 0) {
             adminLogger.log("All giveaways have been backfilled");
         }
         log.debug("Running next backfill task");
@@ -101,24 +103,35 @@ public class GiveawayBackfillManager implements GiveawayBackfillService {
             log.debug("Next giveaway is {}", next);
             Optional<GiveawayEntity> giveaway = giveawayRepository.findById(next);
             if (giveaway.isPresent()) {
-                BackfillTask task = startBackfill(giveaway.get());
-                task.getFuture().handle((c, t) -> {
-                    if (t != null) {
-                        log.info("Giveaway {} did not backfill correctly", giveaway.get().getId());
-                        if (t instanceof BackfillInitializationException) {
-                            log.info("Deleting giveaway because it failed initialization: {}",
-                                t.getMessage());
-                            giveawayService.deleteGiveaway(giveaway.get());
-                        } else {
-                            adminLogger.log(String
-                                .format("Giveaway %s did not backfill correctly: %s",
-                                    giveaway.get().getId(), t.getMessage()));
-                        }
-                    }
-                    log.debug("Backfill completed");
+                // Don't backfill standalone guilds, we're assuming the standalone processor is running
+                if (standaloneWorkerService.isStandalone(giveaway.get().getGuildId())) {
+                    log.info("Skipping backfill of {} because it's on a standalone guild",
+                        giveaway.get());
+                    pendingBackfills.remove(next);
+                    // What happens if we recurse too much?
                     runNextQueuedTask();
-                    return c;
-                });
+                    return;
+                } else {
+                    BackfillTask task = startBackfill(giveaway.get());
+                    task.getFuture().handle((c, t) -> {
+                        if (t != null) {
+                            log.info("Giveaway {} did not backfill correctly",
+                                giveaway.get().getId());
+                            if (t instanceof BackfillInitializationException) {
+                                log.info("Deleting giveaway because it failed initialization: {}",
+                                    t.getMessage());
+                                giveawayService.deleteGiveaway(giveaway.get());
+                            } else {
+                                adminLogger.log(String
+                                    .format("Giveaway %s did not backfill correctly: %s",
+                                        giveaway.get().getId(), t.getMessage()));
+                            }
+                        }
+                        log.debug("Backfill completed");
+                        runNextQueuedTask();
+                        return c;
+                    });
+                }
             }
             pendingBackfills.remove(next);
         }
