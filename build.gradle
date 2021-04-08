@@ -59,6 +59,8 @@ dependencies {
     implementation 'org.json:json:20190722'
     implementation 'io.jsonwebtoken:jjwt:0.9.1'
 
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
     testCompile 'org.junit.jupiter:junit-jupiter-api:5.5.2'
     testCompile 'org.junit.jupiter:junit-jupiter-engine:5.5.2'
     testCompile 'org.mockito:mockito-core:3.1.0'

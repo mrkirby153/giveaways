@@ -18,6 +18,8 @@ import com.mrkirby153.snowsgivingbot.services.backfill.GiveawayBackfillService;
 import com.mrkirby153.snowsgivingbot.services.setting.SettingService;
 import com.mrkirby153.snowsgivingbot.services.setting.Settings;
 import com.mrkirby153.snowsgivingbot.utils.GiveawayEmbedUtils;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -61,6 +63,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -98,6 +101,12 @@ public class GiveawayManager implements GiveawayService {
     private final List<Long> endingGiveaways = new CopyOnWriteArrayList<>();
     private final GiveawayRenderer giveawayRenderer = new GiveawayRenderer();
 
+
+    private final Counter giveawayEntrantsCounter;
+    private final Counter giveawaysStartedCounter;
+    private final Counter giveawaysEndedCounter;
+    private final AtomicInteger giveawaysRenderQueueGauge;
+
     private boolean isReady = false;
 
     public GiveawayManager(ShardManager shardManager, EntrantRepository entrantRepository,
@@ -108,7 +117,8 @@ public class GiveawayManager implements GiveawayService {
         TaskExecutor taskExecutor, StandaloneWorkerService sws, RedisQueueService rqs,
         TaskScheduler taskScheduler,
         @Lazy GiveawayBackfillService backfillService,
-        SettingService settingService, AdminLoggerService adminLoggerService) {
+        SettingService settingService, AdminLoggerService adminLoggerService,
+        MeterRegistry meterRegistry) {
         this.shardManager = shardManager;
         this.entrantRepository = entrantRepository;
         this.giveawayRepository = giveawayRepository;
@@ -121,6 +131,12 @@ public class GiveawayManager implements GiveawayService {
         this.backfillService = backfillService;
         this.settingService = settingService;
         this.adminLoggerService = adminLoggerService;
+
+        giveawayEntrantsCounter = meterRegistry.counter("giveaway_entrants");
+        giveawaysStartedCounter = meterRegistry.counter("giveaway_started");
+        giveawaysEndedCounter = meterRegistry.counter("giveaway_ended");
+        giveawaysRenderQueueGauge = meterRegistry
+            .gauge("giveaways_render_queue", new AtomicInteger(giveawayRenderer.queue.size()));
 
         if (emote.matches("\\d{17,18}")) {
             emoji = null;
@@ -160,6 +176,7 @@ public class GiveawayManager implements GiveawayService {
             addGiveawayEmote(m);
             GiveawayEntity save = giveawayRepository.save(entity);
             publisher.publishEvent(new GiveawayStartedEvent(save));
+            giveawaysStartedCounter.increment();
             cf.complete(save);
         });
         return cf;
@@ -272,6 +289,7 @@ public class GiveawayManager implements GiveawayService {
             GiveawayEntrantEntity gee = new GiveawayEntrantEntity(entity, user.getId());
             entrantRepository.save(gee);
             publisher.publishEvent(new GiveawayEnterEvent(user, entity));
+            giveawayEntrantsCounter.increment();
         }
     }
 
@@ -580,6 +598,7 @@ public class GiveawayManager implements GiveawayService {
                 entityCache.remove(giveaway.getMessageId());
                 publisher.publishEvent(new GiveawayEndedEvent(saved));
                 endingGiveaways.remove(giveaway.getId());
+                giveawaysEndedCounter.increment();
             }
         });
     }
@@ -656,6 +675,12 @@ public class GiveawayManager implements GiveawayService {
     public void onReady(AllShardsReadyEvent event) {
         log.debug("Bot is ready");
         isReady = true;
+    }
+
+    @Scheduled(fixedDelay = 1000L)
+    public void updateStatGauges() {
+        log.trace("Updating gauges");
+        giveawaysRenderQueueGauge.set(giveawayRenderer.queue.size());
     }
 
     private class GiveawayRenderer {

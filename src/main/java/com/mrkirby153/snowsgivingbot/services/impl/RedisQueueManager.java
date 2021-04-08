@@ -10,6 +10,8 @@ import com.mrkirby153.snowsgivingbot.event.GiveawayEndedEvent;
 import com.mrkirby153.snowsgivingbot.event.GiveawayStartedEvent;
 import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
 import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -18,9 +20,11 @@ import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,27 +46,33 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
     private final StandaloneWorkerService standaloneWorkerService;
     private final EntrantRepository entrantRepository;
     private final GiveawayRepository giveawayRepository;
+    private final MeterRegistry meterRegistry;
 
     private final List<QueueProcessorTask> processors = new ArrayList<>();
     private final Map<Long, QueueProcessorTask> assignedGiveaways = new ConcurrentHashMap<>();
-
+    private final Map<Long, AtomicLong> giveawayQueueSize = new ConcurrentHashMap<>();
+    private final AtomicLong totalQueueSize;
+    private final AtomicLong waitingWorkers;
     @Getter
     @Setter
     private long delay = 100;
     @Getter
     @Setter
     private int batchSize = 100;
-
     private long taskCount = 5;
 
     public RedisQueueManager(RedisTemplate<String, String> template,
         StandaloneWorkerService standaloneWorkerService, EntrantRepository entrantRepository,
-        GiveawayRepository giveawayRepository) {
+        GiveawayRepository giveawayRepository, MeterRegistry meterRegistry) {
         this.template = template;
         this.setOps = template.opsForSet();
         this.standaloneWorkerService = standaloneWorkerService;
         this.entrantRepository = entrantRepository;
         this.giveawayRepository = giveawayRepository;
+        this.meterRegistry = meterRegistry;
+
+        totalQueueSize = meterRegistry.gauge("redis_queue_depth", new AtomicLong(0));
+        waitingWorkers = meterRegistry.gauge("waiting_workers", new AtomicLong(0));
     }
 
     @Override
@@ -195,6 +205,7 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
         unassign(event.getGiveaway().getId());
         template.delete(String.format(GIVEAWAY_QUEUE_FORMAT, event.getGiveaway().getId()));
         template.delete(String.format(GIVEAWAY_SET_FORMAT, event.getGiveaway().getId()));
+        giveawayQueueSize.remove(event.getGiveaway().getId());
     }
 
     @Override
@@ -202,17 +213,32 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
         updateTasks();
     }
 
+    @Scheduled(fixedDelay = 1000L)
+    public void updateMetrics() {
+        this.totalQueueSize.set(allQueues().values().stream().reduce(0L, Long::sum));
+        processors.forEach(processor -> processor.getAssignedGiveaways().forEach(giveaway -> {
+            AtomicLong l = this.giveawayQueueSize.computeIfAbsent(giveaway, id -> meterRegistry.gauge("worker_queue",
+                Collections.singletonList(Tag.of("id", id.toString())), new AtomicLong(0)));
+            if (l != null) {
+                l.set(queueSize(giveaway));
+            }
+        }));
+    }
+
     @EventListener
     @Async
     public void onReady(AllShardsReadyEvent event) {
         // When we are ready distribute running and ending giveaways to the work queue
-        List<GiveawayEntity> runningGiveaways = giveawayRepository.findAllByState(GiveawayState.RUNNING);
-        List<GiveawayEntity> endingGiveaways = giveawayRepository.findAllByState(GiveawayState.ENDING);
+        List<GiveawayEntity> runningGiveaways = giveawayRepository
+            .findAllByState(GiveawayState.RUNNING);
+        List<GiveawayEntity> endingGiveaways = giveawayRepository
+            .findAllByState(GiveawayState.ENDING);
 
         Set<String> standaloneGuilds = standaloneWorkerService.getStandaloneGuilds();
         runningGiveaways.removeIf(g -> !standaloneGuilds.contains(g.getGuildId()));
         endingGiveaways.removeIf(g -> !standaloneGuilds.contains(g.getGuildId()));
-        log.info("Assigning {} running giveaways and {} ending giveaways to processors", runningGiveaways.size(), endingGiveaways.size());
+        log.info("Assigning {} running giveaways and {} ending giveaways to processors",
+            runningGiveaways.size(), endingGiveaways.size());
         runningGiveaways.forEach(g -> assign(g.getId()));
         endingGiveaways.forEach(g -> assign(g.getId()));
     }
@@ -281,10 +307,12 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
                 try {
                     if (assignedGiveaways.size() == 0) {
                         log.debug("Thread {} has no giveaways assigned. Waiting for new work", id);
+                        redisQueueManager.waitingWorkers.incrementAndGet();
                         synchronized (syncObject) {
                             syncObject.wait();
                         }
                         log.debug("Thread {} has been assigned work. Resuming", id);
+                        redisQueueManager.waitingWorkers.decrementAndGet();
                     }
                     List<Long> toRemove = new ArrayList<>();
                     for (Long giveawayId : assignedGiveaways) {
@@ -326,9 +354,7 @@ public class RedisQueueManager implements RedisQueueService, CommandLineRunner {
                     }
 
                     if (toRemove.size() > 0) {
-                        toRemove.forEach(id -> {
-                            redisQueueManager.unassign(id);
-                        });
+                        toRemove.forEach(redisQueueManager::unassign);
                     }
                 } catch (Exception e) {
                     if (!(e instanceof InterruptedException)) {
