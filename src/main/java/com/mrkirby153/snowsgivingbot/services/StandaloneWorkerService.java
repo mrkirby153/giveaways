@@ -82,4 +82,9 @@ public interface StandaloneWorkerService {
      * @return The workers loads
      */
     Map<String, Double> getWorkerLoad();
+
+    /**
+     * Distributes all untracked giveaways to workers
+     */
+    long distributeUntrackedGiveaways(Guild guild);
 }

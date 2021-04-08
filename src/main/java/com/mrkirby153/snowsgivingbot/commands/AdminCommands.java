@@ -207,4 +207,13 @@ public class AdminCommands {
         }
         discordService.sendLongMessage(context.getChannel(), sb.toString());
     }
+
+    @Command(name = "distribute", clearance = 101)
+    public void distributeGiveaways(Context context, CommandContext commandContext) {
+        long count = standaloneWorkerService.distributeUntrackedGiveaways(context.getGuild());
+        context.getChannel()
+            .sendMessage(
+                "Distributed " + count + " giveaways for guild **" + context.getGuild().getName()
+                    + "**").queue();
+    }
 }

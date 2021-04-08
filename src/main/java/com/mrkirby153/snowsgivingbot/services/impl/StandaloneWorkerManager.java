@@ -20,12 +20,14 @@ import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -155,6 +157,31 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
             values.forEach(val -> load.put(val.getValue(), val.getScore()));
         }
         return load;
+    }
+
+    @Override
+    public long distributeUntrackedGiveaways(Guild guild) {
+        List<Long> distributedGiveaways = new ArrayList<>();
+        redisTemplate.keys("worker:*:giveaways").forEach(key -> distributedGiveaways
+            .addAll(setOperations.members(key).stream().map(Long::parseLong).collect(
+                Collectors.toList())));
+        log.debug("{} distributed giveaways across workers", distributedGiveaways.size());
+        List<Long> storedGiveaways = giveawayRepository
+            .findAllByGuildIdAndState(guild.getId(), GiveawayState.RUNNING).stream()
+            .map(GiveawayEntity::getId).collect(
+                Collectors.toList());
+        log.debug("{} running stored giveaways", storedGiveaways.size());
+        storedGiveaways.removeAll(distributedGiveaways);
+        log.debug("{} giveaways to distribute", storedGiveaways.size());
+        giveawayRepository.findAllById(storedGiveaways).forEach(g -> {
+            sendToWorker(g);
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
+        return storedGiveaways.size();
     }
 
     @EventListener
