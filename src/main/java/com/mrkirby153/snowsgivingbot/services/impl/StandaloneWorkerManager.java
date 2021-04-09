@@ -71,18 +71,18 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
     public void enableStandaloneWorker(Guild guild) {
         log.info("Enabling standalone mode for {} ({})", guild.getName(), guild.getId());
         setOperations.add(STANDALONE_KEY, guild.getId());
-        List<GiveawayEntity> giveaways = giveawayRepository
-            .findAllByGuildIdAndState(guild.getId(), GiveawayState.RUNNING);
-        log.debug("Assigning {} giveaways to workers", giveaways.size());
-        giveaways.forEach(giveaway -> {
-            sendToWorker(giveaway);
-            redisQueueService.assign(giveaway.getId());
-            try {
-                Thread.sleep(250);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        });
+//        List<GiveawayEntity> giveaways = giveawayRepository
+//            .findAllByGuildIdAndState(guild.getId(), GiveawayState.RUNNING);
+//        log.debug("Assigning {} giveaways to workers", giveaways.size());
+//        giveaways.forEach(giveaway -> {
+//            sendToWorker(giveaway);
+//            redisQueueService.assign(giveaway.getId());
+//            try {
+//                Thread.sleep(250);
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+//        });
         standaloneCache.invalidate(guild.getId());
     }
 
