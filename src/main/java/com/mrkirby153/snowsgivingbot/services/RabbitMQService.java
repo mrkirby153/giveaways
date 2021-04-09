@@ -23,6 +23,7 @@ import org.springframework.amqp.core.AmqpAdmin;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.amqp.rabbit.listener.api.ChannelAwareMessageListener;
@@ -30,12 +31,15 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
+// TODO: 4/9/21 Make this an interface
 public class RabbitMQService {
 
     private final RabbitTemplate rabbitTemplate;
@@ -57,12 +61,22 @@ public class RabbitMQService {
             return;
         }
         log.debug("Publishing start to giveaway work queue");
+        sendToWorker(event.getGiveaway());
+    }
+
+    public void sendToWorker(GiveawayEntity giveaway) {
         ConfiguredGiveawayEmote cge = settingService
-            .get(Settings.GIVEAWAY_EMOTE, event.getGiveaway().getGuildId());
+            .get(Settings.GIVEAWAY_EMOTE, giveaway.getGuildId());
         rabbitTemplate.convertAndSend(RabbitMQConfiguration.GIVEAWAY_WORK_QUEUE,
-            new GiveawayStartMsg(event.getGiveaway().getId(), event.getGiveaway().getMessageId(),
+            new GiveawayStartMsg(giveaway.getId(), giveaway.getMessageId(),
                 cge != null ? cge.getEmote() : null));
-        startQueueHandler(event.getGiveaway());
+        startQueueHandler(giveaway);
+    }
+
+    public void removeFromWorker(GiveawayEntity giveaway) {
+        rabbitTemplate.convertAndSend(RabbitMQConfiguration.GIVEAWAY_STATE_EXCHANGE, "",
+            Long.toString(giveaway.getId()));
+        stopQueueHandler(giveaway);
     }
 
     @EventListener
@@ -71,9 +85,7 @@ public class RabbitMQService {
             return;
         }
         log.debug("Publishing end event");
-        rabbitTemplate.convertAndSend(RabbitMQConfiguration.GIVEAWAY_STATE_EXCHANGE, "",
-            Long.toString(event.getGiveaway().getId()));
-        stopQueueHandler(event.getGiveaway());
+        removeFromWorker(event.getGiveaway());
     }
 
     /**
@@ -86,8 +98,8 @@ public class RabbitMQService {
         runningQueues.forEach((id, worker) -> {
             worker.container.setPrefetchCount(newCount);
             // Do we need to restart the container? probably
-//            worker.container.stop();
-//            worker.container.start();
+            worker.container.stop();
+            worker.container.start();
         });
     }
 
@@ -99,6 +111,25 @@ public class RabbitMQService {
     public void startAll(Guild guild) {
         giveawayRepository.findAllByGuildIdAndState(guild.getId(), GiveawayState.RUNNING)
             .forEach(this::startQueueHandler);
+    }
+
+    public long queueSize(GiveawayEntity entity) {
+        return queueSize(entity.getId());
+    }
+
+    public long queueSize(long giveawayId) {
+        String key = String.format("giveaway_entrants.%d", giveawayId);
+        Properties properties = amqpAdmin.getQueueProperties(key);
+        if (properties == null) {
+            return 0;
+        }
+        return Long.parseLong(properties.getProperty(RabbitAdmin.QUEUE_MESSAGE_COUNT.toString()));
+    }
+
+    public Map<Long, Long> runningQueueSizes() {
+        Map<Long, Long> l = new HashMap<>();
+        runningQueues.keySet().forEach(id -> l.put(id, queueSize(id)));
+        return l;
     }
 
     private void startQueueHandler(GiveawayEntity entity) {

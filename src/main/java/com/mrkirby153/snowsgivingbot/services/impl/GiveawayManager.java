@@ -12,7 +12,7 @@ import com.mrkirby153.snowsgivingbot.event.GiveawayStartedEvent;
 import com.mrkirby153.snowsgivingbot.services.AdminLoggerService;
 import com.mrkirby153.snowsgivingbot.services.DiscordService;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService;
-import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
+import com.mrkirby153.snowsgivingbot.services.RabbitMQService;
 import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import com.mrkirby153.snowsgivingbot.services.backfill.GiveawayBackfillService;
 import com.mrkirby153.snowsgivingbot.services.setting.SettingService;
@@ -80,7 +80,7 @@ public class GiveawayManager implements GiveawayService {
     private final GiveawayRepository giveawayRepository;
     private final DiscordService discordService;
     private final StandaloneWorkerService sws;
-    private final RedisQueueService rqs;
+    private final RabbitMQService rabbitMQService;
     private final ApplicationEventPublisher publisher;
     private final TaskExecutor taskExecutor;
     private final TaskScheduler taskScheduler;
@@ -114,7 +114,7 @@ public class GiveawayManager implements GiveawayService {
         DiscordService discordService,
         @Value("${bot.reaction:" + TADA + "}") String emote,
         ApplicationEventPublisher aep,
-        TaskExecutor taskExecutor, StandaloneWorkerService sws, RedisQueueService rqs,
+        TaskExecutor taskExecutor, StandaloneWorkerService sws, RabbitMQService rabbitMQService,
         TaskScheduler taskScheduler,
         @Lazy GiveawayBackfillService backfillService,
         SettingService settingService, AdminLoggerService adminLoggerService,
@@ -126,7 +126,7 @@ public class GiveawayManager implements GiveawayService {
         this.publisher = aep;
         this.taskExecutor = taskExecutor;
         this.sws = sws;
-        this.rqs = rqs;
+        this.rabbitMQService = rabbitMQService;
         this.taskScheduler = taskScheduler;
         this.backfillService = backfillService;
         this.settingService = settingService;
@@ -562,7 +562,7 @@ public class GiveawayManager implements GiveawayService {
                     renderGiveaway(giveaway);
                     long standaloneQueueSize = 0;
                     while (backfillService.isBackfilling(giveaway)
-                        || (standaloneQueueSize = rqs.queueSize(giveaway.getId())) > 0) {
+                        || (standaloneQueueSize = rabbitMQService.queueSize(giveaway)) > 0) {
                         // TODO: 10/31/20 After 5 minutes or so we should time out and abort to prevent deadlock
                         log.debug("Giveaway is still being processed. Queue Size: {}",
                             standaloneQueueSize);

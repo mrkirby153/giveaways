@@ -9,7 +9,7 @@ import com.mrkirby153.botcore.command.args.CommandContext;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.services.DiscordService;
-import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
+import com.mrkirby153.snowsgivingbot.services.RabbitMQService;
 import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import com.mrkirby153.snowsgivingbot.services.backfill.BackfillTask;
 import com.mrkirby153.snowsgivingbot.services.backfill.GiveawayBackfillService;
@@ -33,7 +33,7 @@ public class AdminCommands {
     private final GiveawayBackfillService backfillService;
     private final DiscordService discordService;
     private final GiveawayRepository giveawayRepository;
-    private final RedisQueueService redisQueueService;
+    private final RabbitMQService rabbitMQService;
     private final StandaloneWorkerService standaloneWorkerService;
     private final ShardManager shardManager;
     private final RedisTemplate<String, String> template;
@@ -127,7 +127,7 @@ public class AdminCommands {
     @Command(name = "cache", clearance = 101)
     public void cacheStats(Context context, CommandContext cmdContext) {
         StringBuilder sb = new StringBuilder();
-        redisQueueService.allQueues().forEach((queue, size) -> sb.append(" - ").append(queue)
+        rabbitMQService.runningQueueSizes().forEach((queue, size) -> sb.append(" - ").append(queue)
             .append(": ").append(size).append("\n"));
         if (sb.length() == 0) {
             sb.append("All queues are empty!");
@@ -135,19 +135,11 @@ public class AdminCommands {
         context.getChannel().sendMessage(sb.toString()).queue();
     }
 
-    @Command(name = "workers", clearance = 101, arguments = {"<sleep:int>", "<batch:int>"})
-    public void workerSettings(Context context, CommandContext cmdContext) {
+    @Command(name = "prefetch", clearance = 101, arguments = {"<batch:int>"})
+    public void updatePrefetchSize(Context context, CommandContext cmdContext) {
         int batch = cmdContext.getNotNull("batch");
-        int sleep = cmdContext.getNotNull("sleep");
-        redisQueueService.updateWorkers(sleep, batch);
-        context.getChannel().sendMessage("Updated!").queue();
-    }
-
-    @Command(name = "tasks", clearance = 101, arguments = {"<tasks:int>"})
-    public void tasks(Context context, CommandContext cmdContext) {
-        int count = cmdContext.getNotNull("tasks");
-        redisQueueService.updateWorkerCount(count);
-        context.getChannel().sendMessage("Updated!").queue();
+        rabbitMQService.updatePrefetchCount(batch);
+        context.getChannel().sendMessage("Updated prefetch size").queue();
     }
 
     @Command(name = "get", clearance = 101, arguments = {"<guild:string>"}, parent = "standalone")
@@ -186,14 +178,6 @@ public class AdminCommands {
     @Command(name = "status", clearance = 101)
     public void getHeartbeat(Context context, CommandContext commandContext) {
         StringBuilder sb = new StringBuilder();
-        sb.append("**Worker Load**\n");
-        Map<String, Double> workerLoad = standaloneWorkerService.getWorkerLoad();
-        if (workerLoad.size() == 0) {
-            sb.append("No workers reported load\n");
-        } else {
-            workerLoad
-                .forEach((id, load) -> sb.append(String.format(" %s - %s\n", id, load)));
-        }
         sb.append("**Worker Heartbeats**\n");
         Map<String, Long> workerHeartbeats = standaloneWorkerService.getWorkerHeartbeats();
         if (workerHeartbeats.size() == 0) {

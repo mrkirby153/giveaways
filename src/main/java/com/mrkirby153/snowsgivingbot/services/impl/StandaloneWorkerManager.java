@@ -6,25 +6,22 @@ import com.google.common.cache.LoadingCache;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
-import com.mrkirby153.snowsgivingbot.event.GiveawayStartedEvent;
-import com.mrkirby153.snowsgivingbot.services.RedisQueueService;
+import com.mrkirby153.snowsgivingbot.services.RabbitMQService;
 import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.entities.Guild;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.ZSetOperations;
-import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -34,35 +31,29 @@ import java.util.stream.Collectors;
 public class StandaloneWorkerManager implements StandaloneWorkerService {
 
     private static final String STANDALONE_KEY = "standalone";
-    private static final String WORKER_LIST_KEY = "worker_load";
-    private static final String GIVEAWAY_TOPIC = "giveaway";
-    private static final String GIVEAWAY_WORKER_FORMAT = "giveaway-%s";
 
     private final RedisTemplate<String, String> redisTemplate;
     private final SetOperations<String, String> setOperations;
     private final ZSetOperations<String, String> zSetOperations;
     private final GiveawayRepository giveawayRepository;
-    private final RedisQueueService redisQueueService;
+    private final RabbitMQService rabbitMQService;
 
     private final LoadingCache<String, Boolean> standaloneCache;
 
     public StandaloneWorkerManager(RedisTemplate<String, String> redisTemplate,
-        GiveawayRepository giveawayRepository, @Lazy RedisQueueService redisQueueService) {
+        GiveawayRepository giveawayRepository, @Lazy RabbitMQService rabbitMQService) {
         this.redisTemplate = redisTemplate;
         this.setOperations = redisTemplate.opsForSet();
         this.zSetOperations = redisTemplate.opsForZSet();
         this.giveawayRepository = giveawayRepository;
-        this.redisQueueService = redisQueueService;
+        this.rabbitMQService = rabbitMQService;
 
         this.standaloneCache = CacheBuilder.newBuilder().maximumSize(1000).build(
-            new CacheLoader<String, Boolean>() {
+            new CacheLoader<>() {
                 @Override
                 public Boolean load(@NotNull String key) throws Exception {
                     Boolean isMember = setOperations.isMember(STANDALONE_KEY, key);
-                    if (isMember == null) {
-                        return false;
-                    }
-                    return isMember;
+                    return Objects.requireNonNullElse(isMember, false);
                 }
             });
     }
@@ -71,18 +62,10 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
     public void enableStandaloneWorker(Guild guild) {
         log.info("Enabling standalone mode for {} ({})", guild.getName(), guild.getId());
         setOperations.add(STANDALONE_KEY, guild.getId());
-//        List<GiveawayEntity> giveaways = giveawayRepository
-//            .findAllByGuildIdAndState(guild.getId(), GiveawayState.RUNNING);
-//        log.debug("Assigning {} giveaways to workers", giveaways.size());
-//        giveaways.forEach(giveaway -> {
-//            sendToWorker(giveaway);
-//            redisQueueService.assign(giveaway.getId());
-//            try {
-//                Thread.sleep(250);
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
-//        });
+        List<GiveawayEntity> giveaways = giveawayRepository
+            .findAllByGuildIdAndState(guild.getId(), GiveawayState.RUNNING);
+        log.debug("Assigning {} giveaways to workers", giveaways.size());
+        giveaways.forEach(this::sendToWorker);
         standaloneCache.invalidate(guild.getId());
     }
 
@@ -98,10 +81,7 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
         List<GiveawayEntity> giveaways = giveawayRepository
             .findAllByGuildIdAndState(guild.getId(), GiveawayState.RUNNING);
         log.debug("Unassigning {} giveaways from workers", giveaways.size());
-        giveaways.forEach(g -> {
-            removeFromWorker(g);
-            redisQueueService.dequeue(g);
-        });
+        giveaways.forEach(this::removeFromWorker);
         standaloneCache.invalidate(guild.getId());
     }
 
@@ -122,16 +102,14 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
 
     @Override
     public void sendToWorker(GiveawayEntity giveaway) {
-        String workerId = getWorker();
-        log.debug("Sending giveaway {} to worker {}", giveaway.getId(), workerId);
-        redisTemplate.convertAndSend(String.format(GIVEAWAY_WORKER_FORMAT, workerId),
-            String.format("load:%d-%s", giveaway.getId(), giveaway.getMessageId()));
+        log.debug("Assigning giveaway to worker {}", giveaway);
+        rabbitMQService.sendToWorker(giveaway);
     }
 
     @Override
     public void removeFromWorker(GiveawayEntity giveaway) {
         log.debug("Removing giveaway {} from the workers", giveaway.getId());
-        redisTemplate.convertAndSend(GIVEAWAY_TOPIC, String.format("unload:%d", giveaway.getId()));
+        rabbitMQService.removeFromWorker(giveaway);
     }
 
     @Override
@@ -147,16 +125,6 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
             });
         }
         return heartbeats;
-    }
-
-    @Override
-    public Map<String, Double> getWorkerLoad() {
-        Map<String, Double> load = new HashMap<>();
-        Set<TypedTuple<String>> values = zSetOperations.rangeWithScores(WORKER_LIST_KEY, 0, -1);
-        if (values != null) {
-            values.forEach(val -> load.put(val.getValue(), val.getScore()));
-        }
-        return load;
     }
 
     @Override
@@ -182,29 +150,5 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
             }
         });
         return storedGiveaways.size();
-    }
-
-    @EventListener
-    public void onGiveawayStart(GiveawayStartedEvent event) {
-        if (isStandalone(event.getGiveaway().getGuildId())) {
-            sendToWorker(event.getGiveaway());
-        }
-    }
-
-    /**
-     * Gets the worker with the least load to assign the giveaway to
-     *
-     * @return The worker id
-     */
-    private String getWorker() {
-        Set<String> workers = zSetOperations.range(WORKER_LIST_KEY, 0, 0);
-        if (workers == null) {
-            throw new IllegalStateException("No worker was found");
-        }
-        Iterator<String> iter = workers.iterator();
-        if (!iter.hasNext()) {
-            throw new IllegalStateException("No worker was found");
-        }
-        return iter.next();
     }
 }

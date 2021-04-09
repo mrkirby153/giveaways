@@ -77,13 +77,6 @@ public interface StandaloneWorkerService {
     Map<String, Long> getWorkerHeartbeats();
 
     /**
-     * Gets the load of all the workers
-     *
-     * @return The workers loads
-     */
-    Map<String, Double> getWorkerLoad();
-
-    /**
      * Distributes all untracked giveaways to workers
      */
     long distributeUntrackedGiveaways(Guild guild);
