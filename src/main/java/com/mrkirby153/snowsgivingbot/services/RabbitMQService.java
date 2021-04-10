@@ -76,7 +76,6 @@ public class RabbitMQService {
     public void removeFromWorker(GiveawayEntity giveaway) {
         rabbitTemplate.convertAndSend(RabbitMQConfiguration.GIVEAWAY_STATE_EXCHANGE, "",
             Long.toString(giveaway.getId()));
-        stopQueueHandler(giveaway);
     }
 
     @EventListener
@@ -86,6 +85,7 @@ public class RabbitMQService {
         }
         log.debug("Publishing end event");
         removeFromWorker(event.getGiveaway());
+        stopQueueHandler(event.getGiveaway());
     }
 
     /**
@@ -123,7 +123,7 @@ public class RabbitMQService {
         if (properties == null) {
             return 0;
         }
-        return Long.parseLong(properties.getProperty(RabbitAdmin.QUEUE_MESSAGE_COUNT.toString()));
+        return Long.parseLong(properties.get(RabbitAdmin.QUEUE_MESSAGE_COUNT).toString());
     }
 
     public Map<Long, Long> runningQueueSizes() {

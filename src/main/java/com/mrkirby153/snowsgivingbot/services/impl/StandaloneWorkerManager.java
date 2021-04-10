@@ -6,12 +6,15 @@ import com.google.common.cache.LoadingCache;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
+import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import com.mrkirby153.snowsgivingbot.services.RabbitMQService;
 import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.sharding.ShardManager;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -37,16 +40,19 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
     private final ZSetOperations<String, String> zSetOperations;
     private final GiveawayRepository giveawayRepository;
     private final RabbitMQService rabbitMQService;
+    private final ShardManager shardManager;
 
     private final LoadingCache<String, Boolean> standaloneCache;
 
     public StandaloneWorkerManager(RedisTemplate<String, String> redisTemplate,
-        GiveawayRepository giveawayRepository, @Lazy RabbitMQService rabbitMQService) {
+        GiveawayRepository giveawayRepository, @Lazy RabbitMQService rabbitMQService,
+        ShardManager shardManager) {
         this.redisTemplate = redisTemplate;
         this.setOperations = redisTemplate.opsForSet();
         this.zSetOperations = redisTemplate.opsForZSet();
         this.giveawayRepository = giveawayRepository;
         this.rabbitMQService = rabbitMQService;
+        this.shardManager = shardManager;
 
         this.standaloneCache = CacheBuilder.newBuilder().maximumSize(1000).build(
             new CacheLoader<>() {
@@ -150,5 +156,11 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
             }
         });
         return storedGiveaways.size();
+    }
+
+    @EventListener
+    public void onAllShardStart(AllShardsReadyEvent event) {
+        shardManager.getGuilds().stream().filter(this::isStandalone)
+            .forEach(this::distributeUntrackedGiveaways);
     }
 }
