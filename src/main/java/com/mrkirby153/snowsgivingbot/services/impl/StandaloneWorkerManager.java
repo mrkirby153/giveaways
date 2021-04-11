@@ -7,6 +7,7 @@ import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
+import com.mrkirby153.snowsgivingbot.event.GiveawayEndedEvent;
 import com.mrkirby153.snowsgivingbot.services.RabbitMQService;
 import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import lombok.extern.slf4j.Slf4j;
@@ -162,5 +163,10 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
     public void onAllShardStart(AllShardsReadyEvent event) {
         shardManager.getGuilds().stream().filter(this::isStandalone)
             .forEach(this::distributeUntrackedGiveaways);
+    }
+
+    @EventListener
+    public void onGiveawayEnd(GiveawayEndedEvent event) {
+        redisTemplate.delete(String.format("giveaway:%d", event.getGiveaway().getId()));
     }
 }
