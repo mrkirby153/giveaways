@@ -15,6 +15,8 @@ import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import com.mrkirby153.snowsgivingbot.services.setting.SettingService;
 import com.mrkirby153.snowsgivingbot.services.setting.Settings;
 import com.rabbitmq.client.Channel;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +35,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
@@ -40,10 +43,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 @ConditionalOnProperty("spring.rabbitmq.host")
 public class RabbitMQManager implements RabbitMQService {
 
@@ -56,9 +59,38 @@ public class RabbitMQManager implements RabbitMQService {
     private final EntrantRepository entrantRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final ShardManager shardManager;
+    private final MeterRegistry meterRegistry;
     private final Map<Long, RunningQueueWorker> runningQueues = new ConcurrentHashMap<>();
 
+    private final AtomicLong totalQueueDepth;
+    private final Map<Long, AtomicLong> queueDepth = new ConcurrentHashMap<>();
+
     private int prefetchCount = 10;
+
+    public RabbitMQManager(RabbitTemplate rabbitTemplate,
+        SettingService settingService,
+        StandaloneWorkerService standaloneWorkerService,
+        AmqpAdmin amqpAdmin,
+        ConnectionFactory connectionFactory,
+        GiveawayRepository giveawayRepository,
+        EntrantRepository entrantRepository,
+        ApplicationEventPublisher applicationEventPublisher,
+        ShardManager shardManager,
+        MeterRegistry meterRegistry) {
+        this.rabbitTemplate = rabbitTemplate;
+        this.settingService = settingService;
+        this.standaloneWorkerService = standaloneWorkerService;
+        this.amqpAdmin = amqpAdmin;
+        this.connectionFactory = connectionFactory;
+        this.giveawayRepository = giveawayRepository;
+        this.entrantRepository = entrantRepository;
+        this.applicationEventPublisher = applicationEventPublisher;
+        this.shardManager = shardManager;
+        this.meterRegistry = meterRegistry;
+
+        totalQueueDepth = meterRegistry.gauge("rabbit_queue_depth", new AtomicLong(0));
+    }
+
 
     @EventListener
     public void onGiveawayStart(GiveawayStartedEvent event) {
@@ -83,16 +115,6 @@ public class RabbitMQManager implements RabbitMQService {
     public void removeFromWorker(GiveawayEntity giveaway) {
         rabbitTemplate.convertAndSend(RabbitMQConfiguration.GIVEAWAY_STATE_EXCHANGE, "",
             Long.toString(giveaway.getId()));
-    }
-
-    @EventListener
-    public void onGiveawayEnd(GiveawayEndedEvent event) {
-        if (!standaloneWorkerService.isStandalone(event.getGiveaway().getGuildId())) {
-            return;
-        }
-        log.debug("Publishing end event");
-        removeFromWorker(event.getGiveaway());
-        stopQueueHandler(event.getGiveaway());
     }
 
     @Override
@@ -137,6 +159,30 @@ public class RabbitMQManager implements RabbitMQService {
         Map<Long, Long> l = new HashMap<>();
         runningQueues.keySet().forEach(id -> l.put(id, queueSize(id)));
         return l;
+    }
+
+    @EventListener
+    public void onGiveawayEnd(GiveawayEndedEvent event) {
+        if (!standaloneWorkerService.isStandalone(event.getGiveaway().getGuildId())) {
+            return;
+        }
+        log.debug("Publishing end event");
+        removeFromWorker(event.getGiveaway());
+        stopQueueHandler(event.getGiveaway());
+    }
+
+    @Scheduled(fixedRate = 1000)
+    public void updateRunningQueueStats() {
+        this.totalQueueDepth.set(runningQueueSizes().values().stream().reduce(0L, Long::sum));
+        runningQueueSizes().forEach((giveaway, depth) -> {
+            AtomicLong l = this.queueDepth.computeIfAbsent(giveaway, id -> meterRegistry
+                .gauge("giveaway_queue_depth",
+                    Collections.singletonList(Tag.of("id", giveaway.toString())),
+                    new AtomicLong(0)));
+            if(l != null) {
+                l.set(depth);
+            }
+        });
     }
 
     private void startQueueHandler(GiveawayEntity entity) {

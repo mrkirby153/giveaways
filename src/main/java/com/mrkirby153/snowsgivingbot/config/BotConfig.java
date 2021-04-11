@@ -3,6 +3,7 @@ package com.mrkirby153.snowsgivingbot.config;
 import com.mrkirby153.botcore.event.EventWaiter;
 import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import com.mrkirby153.snowsgivingbot.services.EventService;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.JDA;
@@ -21,9 +22,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
@@ -39,13 +42,21 @@ public class BotConfig {
     private final ApplicationEventPublisher eventPublisher;
     private final TaskScheduler taskScheduler;
 
+    private final AtomicLong guildCount;
+    private final AtomicLong shardCount;
+    private final AtomicLong queuedShards;
+
 
     public BotConfig(@Value("${bot.token}") String token, EventService service,
-        ApplicationEventPublisher eventPublisher, TaskScheduler taskScheduler) {
+        ApplicationEventPublisher eventPublisher, TaskScheduler taskScheduler, MeterRegistry meterRegistry) {
         this.token = token;
         this.springJdaShim = service;
         this.eventPublisher = eventPublisher;
         this.taskScheduler = taskScheduler;
+
+        this.guildCount = meterRegistry.gauge("guild_count", new AtomicLong(0));
+        this.shardCount = meterRegistry.gauge("shard_count", new AtomicLong(0));
+        this.queuedShards = meterRegistry.gauge("queued_shards", new AtomicLong(0));
     }
 
     @Bean
@@ -71,6 +82,17 @@ public class BotConfig {
         EventWaiter waiter = new EventWaiter();
         shardManager.addEventListener(waiter);
         return waiter;
+    }
+
+    @Scheduled(fixedRate = 1000L)
+    public void updateGuildCount() {
+        try{
+            guildCount.set(shardManager().getGuilds().size());
+            shardCount.set(shardManager().getShardsTotal());
+            queuedShards.set(shardManager().getShardsQueued());
+        } catch (Exception e) {
+            // Ignore
+        }
     }
 
     @AllArgsConstructor

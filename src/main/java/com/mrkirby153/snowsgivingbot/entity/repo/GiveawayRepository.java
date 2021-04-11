@@ -17,6 +17,8 @@ public interface GiveawayRepository extends CrudRepository<GiveawayEntity, Long>
 
     List<GiveawayEntity> findAllByState(GiveawayState state);
 
+    long countAllByState(GiveawayState state);
+
     List<GiveawayEntity> findAllByGuildIdAndState(String guildId, GiveawayState state);
 
     void deleteAllByMessageId(String messageId);

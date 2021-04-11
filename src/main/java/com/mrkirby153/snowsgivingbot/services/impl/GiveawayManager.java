@@ -87,6 +87,7 @@ public class GiveawayManager implements GiveawayService {
     private final GiveawayBackfillService backfillService;
     private final SettingService settingService;
     private final AdminLoggerService adminLoggerService;
+    private final MeterRegistry meterRegistry;
 
     private final Map<String, GiveawayEntity> entityCache = new HashMap<>();
 
@@ -105,6 +106,7 @@ public class GiveawayManager implements GiveawayService {
     private final Counter giveawayEntrantsCounter;
     private final Counter giveawaysStartedCounter;
     private final Counter giveawaysEndedCounter;
+    private final AtomicLong runningGiveawayGauge;
     private final AtomicInteger giveawaysRenderQueueGauge;
 
     private boolean isReady = false;
@@ -131,12 +133,14 @@ public class GiveawayManager implements GiveawayService {
         this.backfillService = backfillService;
         this.settingService = settingService;
         this.adminLoggerService = adminLoggerService;
+        this.meterRegistry = meterRegistry;
 
         giveawayEntrantsCounter = meterRegistry.counter("giveaway_entrants");
         giveawaysStartedCounter = meterRegistry.counter("giveaway_started");
         giveawaysEndedCounter = meterRegistry.counter("giveaway_ended");
         giveawaysRenderQueueGauge = meterRegistry
             .gauge("giveaways_render_queue", new AtomicInteger(giveawayRenderer.queue.size()));
+        runningGiveawayGauge = meterRegistry.gauge("running_giveaways", new AtomicLong(0));
 
         if (emote.matches("\\d{17,18}")) {
             emoji = null;
@@ -681,6 +685,7 @@ public class GiveawayManager implements GiveawayService {
     public void updateStatGauges() {
         log.trace("Updating gauges");
         giveawaysRenderQueueGauge.set(giveawayRenderer.queue.size());
+        runningGiveawayGauge.set(giveawayRepository.countAllByState(GiveawayState.RUNNING));
     }
 
     private class GiveawayRenderer {
