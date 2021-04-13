@@ -162,7 +162,10 @@ public class StandaloneWorkerManager implements StandaloneWorkerService {
     @EventListener
     public void onAllShardStart(AllShardsReadyEvent event) {
         shardManager.getGuilds().stream().filter(this::isStandalone)
-            .forEach(this::distributeUntrackedGiveaways);
+            .forEach(g -> {
+                distributeUntrackedGiveaways(g);
+                rabbitMQService.startAll(g);
+            });
     }
 
     @EventListener

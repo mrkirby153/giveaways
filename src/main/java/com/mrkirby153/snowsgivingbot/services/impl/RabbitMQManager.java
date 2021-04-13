@@ -38,6 +38,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -65,7 +66,7 @@ public class RabbitMQManager implements RabbitMQService {
     private final AtomicLong totalQueueDepth;
     private final Map<Long, AtomicLong> queueDepth = new ConcurrentHashMap<>();
 
-    private int prefetchCount = 10;
+    private int prefetchCount = 100;
 
     public RabbitMQManager(RabbitTemplate rabbitTemplate,
         SettingService settingService,
@@ -179,7 +180,7 @@ public class RabbitMQManager implements RabbitMQService {
                 .gauge("giveaway_queue_depth",
                     Collections.singletonList(Tag.of("id", giveaway.toString())),
                     new AtomicLong(0)));
-            if(l != null) {
+            if (l != null) {
                 l.set(depth);
             }
         });
@@ -240,24 +241,28 @@ public class RabbitMQManager implements RabbitMQService {
         public void onMessage(Message message, Channel channel) throws Exception {
             log.trace("Received message {}", message);
             try {
-                String userId = new String(message.getBody());
-                userId = userId.replaceAll("\"(.*)\"", "$1");
-                log.debug("Entering {} in giveaway {}", userId, giveaway);
-
-                if (!service.entrantRepository.existsByGiveawayAndUserId(giveaway, userId)) {
-                    service.entrantRepository.save(new GiveawayEntrantEntity(giveaway, userId));
-                    service.shardManager.retrieveUserById(userId).queue(user -> {
-                        log.debug("Dispatching GiveawayEnterEvent for {} and {}", user, giveaway);
-                        service.applicationEventPublisher
-                            .publishEvent(new GiveawayEnterEvent(user, giveaway));
+                final String userId = new String(message.getBody()).replaceAll("\"(.*)\"", "$1");
+                service.entrantRepository.asyncExistsByGiveawayAndUserId(giveaway, userId)
+                    .thenAccept(exists -> {
+                        if (!exists) {
+                            service.entrantRepository
+                                .save(new GiveawayEntrantEntity(giveaway, userId));
+                            service.shardManager.retrieveUserById(userId).queue(user -> {
+                                log.debug("Dispatching GiveawayEnterEvent for {} and {}", user,
+                                    giveaway);
+                                service.applicationEventPublisher
+                                    .publishEvent(new GiveawayEnterEvent(user, giveaway));
+                            });
+                        }
+                        try {
+                            channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
                     });
-                }
 
             } catch (Exception e) {
                 log.error("Error processing entry", e);
-            } finally {
-                log.trace("Acking entry {}", message.getMessageProperties().getDeliveryTag());
-                channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
             }
         }
     }
