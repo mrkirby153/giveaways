@@ -15,6 +15,7 @@ import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import com.mrkirby153.snowsgivingbot.services.setting.SettingService;
 import com.mrkirby153.snowsgivingbot.services.setting.Settings;
 import com.rabbitmq.client.Channel;
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 import lombok.Data;
@@ -170,6 +171,16 @@ public class RabbitMQManager implements RabbitMQService {
         log.debug("Publishing end event");
         removeFromWorker(event.getGiveaway());
         stopQueueHandler(event.getGiveaway());
+
+        // Remove the giveaway from the gauges
+        Gauge g = meterRegistry.find("giveaway_queue_depth")
+            .tags(Collections.singletonList(Tag.of("id",
+                String.valueOf(event.getGiveaway().getId())))).gauge();
+        if (g != null) {
+            log.debug("Removing gauge from prometheus");
+            meterRegistry.remove(g);
+        }
+        queueDepth.remove(event.getGiveaway().getId());
     }
 
     @Scheduled(fixedRate = 1000)
@@ -255,7 +266,8 @@ public class RabbitMQManager implements RabbitMQService {
                             });
                         }
                         try {
-                            channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+                            channel
+                                .basicAck(message.getMessageProperties().getDeliveryTag(), false);
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
