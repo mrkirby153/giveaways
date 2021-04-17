@@ -69,7 +69,7 @@ public class GiveawayEmbedUtils {
                 break;
             case ENDING:
                 eb.setColor(Color.RED);
-                eb.setDescription("Giveaway has ended! Determining winners");
+                descBuilder.append("Giveaway has ended! Determining winners");
                 eb.setFooter(
                     entity.getWinners() + " " + (entity.getWinners() > 1 ? "winners" : "winner")
                         + " | Ended at");
