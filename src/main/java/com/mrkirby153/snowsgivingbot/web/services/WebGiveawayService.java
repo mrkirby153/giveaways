@@ -8,6 +8,8 @@ import com.mrkirby153.snowsgivingbot.entity.GiveawayEntrantEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.services.DiscordService;
+import com.mrkirby153.snowsgivingbot.services.setting.SettingService;
+import com.mrkirby153.snowsgivingbot.services.setting.Settings;
 import com.mrkirby153.snowsgivingbot.web.DiscordUser;
 import com.mrkirby153.snowsgivingbot.web.dto.AllGiveawaysDto;
 import com.mrkirby153.snowsgivingbot.web.dto.GiveawayDto;
@@ -35,6 +37,7 @@ public class WebGiveawayService {
     private final EntrantRepository entrantRepository;
     private final ShardManager shardManager;
     private final DiscordService discordService;
+    private final SettingService settingService;
 
     private final LoadingCache<String, String> channelNameCache = CacheBuilder.newBuilder()
         .maximumSize(1000).build(
@@ -69,7 +72,8 @@ public class WebGiveawayService {
             .getAllActiveGiveawaysInChannel(guild, visibleChannels);
         List<GiveawayEntity> inactiveGiveaways = giveawayRepository
             .getExpiredGiveaways(guild, visibleChannels,
-                Timestamp.from(Instant.now().minus(3, ChronoUnit.DAYS)));
+                Timestamp.from(Instant.now().minus(settingService.get(
+                    Settings.HIDE_GIVEAWAYS_DASHBOARD_AGE, guild), ChronoUnit.MILLIS)));
         List<GiveawayEntrantEntity> entrants = entrantRepository
             .findAllByUserInGuild(user.getId(), guild);
         List<GiveawayDto> activeDtos = activeGiveaways.stream()

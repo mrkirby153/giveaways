@@ -589,6 +589,10 @@ public class GiveawayManager implements GiveawayService {
                         .equals(giveaway.getMessageId())) {
                         includeLink = false;
                     }
+                    // Force disable jump links if they're disabled in a guild setting
+                    if(!settingService.get(Settings.DISPLAY_JUMP_LINKS, channel.getGuild())) {
+                        includeLink = false;
+                    }
                     generateEndMessage(giveaway, includeLink)
                         .forEach(msg -> channel.sendMessage(msg).queue());
                     giveaway.setState(GiveawayState.ENDED);

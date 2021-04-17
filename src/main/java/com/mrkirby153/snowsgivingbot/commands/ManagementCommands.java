@@ -11,6 +11,8 @@ import com.mrkirby153.snowsgivingbot.services.setting.Settings;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import me.mrkirby153.kcutils.Time;
+import me.mrkirby153.kcutils.Time.TimeUnit;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Emote;
@@ -38,6 +40,8 @@ public class ManagementCommands {
     static {
         settingMap.put("emote", Settings.GIVEAWAY_EMOTE);
         settingMap.put("prefix", Settings.COMMAND_PREFIX);
+        settingMap.put("jumplinks", Settings.DISPLAY_JUMP_LINKS);
+        settingMap.put("dashboard-age", Settings.HIDE_GIVEAWAYS_DASHBOARD_AGE);
     }
 
     private final List<EditableSetting<?>> editableSettings = new ArrayList<>();
@@ -89,6 +93,24 @@ public class ManagementCommands {
                 }
                 return emote;
             }));
+        editableSettings.add(
+            new EditableSetting<>(Settings.DISPLAY_JUMP_LINKS, "Display Jump Links",
+                Object::toString, (input) -> {
+                String lower = input.toLowerCase();
+                if(lower.equals("true") || lower.equals("false")) {
+                    return Boolean.parseBoolean(lower);
+                } else {
+                    throw new IllegalArgumentException("Enter true or false");
+                }
+            }));
+        editableSettings.add(new EditableSetting<>(Settings.HIDE_GIVEAWAYS_DASHBOARD_AGE,
+            "Hide Giveaways Older Than", obj -> {
+            try {
+                return Time.formatLong((long) obj, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                return "Unknown";
+            }
+        }, Time::parse));
     }
 
     @Command(name = "configure", clearance = 100, permissions = {Permission.MESSAGE_EMBED_LINKS})
@@ -100,7 +122,8 @@ public class ManagementCommands {
         String prefix = settingService
             .get(Settings.COMMAND_PREFIX, context.getGuild());
         eb.setDescription("The following settings are configured on this server.\n\nUse `" + prefix
-            + "configure set <option> <value>` to change (i.e. `" + prefix + "configure set emote :package:`");
+            + "configure set <option> <value>` to change (i.e. `" + prefix
+            + "configure set emote :package:`");
 
         editableSettings.forEach(setting -> {
             String name = String
