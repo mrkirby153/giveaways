@@ -1,10 +1,13 @@
 package com.mrkirby153.snowsgivingbot.services.slashcommands;
 
-import com.mrkirby153.snowsgivingbot.commands.slashcommands.TestSlashCommands;
+import com.mrkirby153.snowsgivingbot.commands.slashcommands.AdminSlashCommands;
+import com.mrkirby153.snowsgivingbot.commands.slashcommands.GiveawaySlashCommands;
 import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
+import com.mrkirby153.snowsgivingbot.services.PermissionService;
 import com.mrkirby153.snowsgivingbot.services.slashcommands.annotations.CommandOption;
 import com.mrkirby153.snowsgivingbot.services.slashcommands.annotations.SlashCommand;
 import lombok.extern.slf4j.Slf4j;
+import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Category;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.GuildChannel;
@@ -59,20 +62,26 @@ public class SlashCommandManager implements SlashCommandService {
         optionTypes.put(Role.class, OptionType.ROLE);
         optionTypes.put(IMentionable.class, OptionType.MENTIONABLE);
 
-        slashCommandClasses.add(TestSlashCommands.class);
+        slashCommandClasses.add(AdminSlashCommands.class);
+        slashCommandClasses.add(GiveawaySlashCommands.class);
     }
 
     private final ShardManager shardManager;
     private final SlashCommandNode rootNode = new SlashCommandNode("$$ROOT$$");
     private final ApplicationContext context;
+    private final String owner;
+    private final PermissionService permissionService;
 
     private final String slashCommandGuilds;
 
     public SlashCommandManager(ShardManager shardManager, ApplicationContext applicationContext,
-        @Value("${bot.slash-command.guilds:}") String slashCommandGuilds) {
+        @Value("${bot.slash-command.guilds:}") String slashCommandGuilds,
+        @Value("${bot.owner:}") String owner, PermissionService permissionService) {
         this.shardManager = shardManager;
         this.slashCommandGuilds = slashCommandGuilds;
         this.context = applicationContext;
+        this.owner = owner;
+        this.permissionService = permissionService;
     }
 
 
@@ -108,6 +117,7 @@ public class SlashCommandManager implements SlashCommandService {
                 node.setOptions(discoverOptions(method));
                 node.setClassInstance(object);
                 node.setDescription(annotation.description());
+                node.setClearance(annotation.clearance());
                 node.setMethod(method);
             }
         });
@@ -163,6 +173,10 @@ public class SlashCommandManager implements SlashCommandService {
         }
         if (this.slashCommandGuilds.isBlank()) {
             log.info("Updating commands globally");
+            JDA jda = shardManager.getShardById(0);
+            if(jda != null) {
+                jda.updateCommands().addCommands(commands).queue();
+            }
         } else {
             for (String guildId : slashCommandGuilds.split(",")) {
                 Guild g = shardManager.getGuildById(guildId);
@@ -245,6 +259,18 @@ public class SlashCommandManager implements SlashCommandService {
                     log.debug("Option {} does not exist on command {}", annotation.value(),
                         command);
                 }
+            }
+            int userClearance = 0;
+            if (permissionService.hasPermission(event.getMember())) {
+                userClearance = 100;
+            }
+            if (event.getUser().getId().equals(owner)) {
+                userClearance = 101;
+            }
+            if (userClearance < n.getClearance()) {
+                event.reply(":lock: You do not have permission to perform this command")
+                    .setEphemeral(true).queue();
+                return;
             }
             try {
                 n.getMethod().invoke(n.getClassInstance(), parameters);

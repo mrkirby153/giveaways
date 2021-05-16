@@ -14,6 +14,7 @@ public class SlashCommandNode {
     private String description = "No description provided";
     private final List<SlashCommandNode> children = new ArrayList<>();
     private SlashCommandNode parent;
+    private int clearance;
     private Object classInstance;
     private Method method;
     private List<OptionData> options;
