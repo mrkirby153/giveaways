@@ -18,10 +18,15 @@ configurations {
 
 repositories {
     mavenCentral()
-    jcenter()
     mavenLocal()
     maven {
         url = "https://repo.mrkirby153.com/repository/maven-public/"
+    }
+    maven {
+        url = 'https://m2.dv8tion.net/releases'
+    }
+    maven {
+        url = 'https://jitpack.io'
     }
 }
 
@@ -53,7 +58,7 @@ dependencies {
         exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
     }
 
-    implementation 'net.dv8tion:JDA:4.2.0_214'
+    implementation 'com.github.dv8fromtheworld:jda:db92d7d669a639a225f5ee831a83bb36f30a4b13'
     implementation 'com.mrkirby153:bot-core:3.0-SNAPSHOT'
     implementation 'me.mrkirby153:KirbyUtils-Common:3.3'
     implementation 'com.google.guava:guava:29.0-jre'
