@@ -3,6 +3,7 @@ package com.mrkirby153.snowsgivingbot.services.slashcommands;
 import lombok.Data;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -14,6 +15,7 @@ public class SlashCommandNode {
     private final List<SlashCommandNode> children = new ArrayList<>();
     private SlashCommandNode parent;
     private Object classInstance;
+    private Method method;
     private List<OptionData> options;
 
     /**

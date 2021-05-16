@@ -5,8 +5,16 @@ import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import com.mrkirby153.snowsgivingbot.services.slashcommands.annotations.CommandOption;
 import com.mrkirby153.snowsgivingbot.services.slashcommands.annotations.SlashCommand;
 import lombok.extern.slf4j.Slf4j;
+import net.dv8tion.jda.api.entities.Category;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.GuildChannel;
+import net.dv8tion.jda.api.entities.IMentionable;
+import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.entities.TextChannel;
+import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.VoiceChannel;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
+import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
@@ -21,6 +29,7 @@ import org.springframework.stereotype.Service;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -36,9 +45,19 @@ public class SlashCommandManager implements SlashCommandService {
     private static final List<Class<?>> slashCommandClasses = new ArrayList<>();
 
     static {
-        optionTypes.put(Boolean.class, OptionType.BOOLEAN);
-        optionTypes.put(Integer.class, OptionType.INTEGER);
         optionTypes.put(String.class, OptionType.STRING);
+        optionTypes.put(Integer.TYPE, OptionType.INTEGER);
+        optionTypes.put(Integer.class, OptionType.INTEGER);
+        optionTypes.put(Long.class, OptionType.INTEGER);
+        optionTypes.put(Long.TYPE, OptionType.INTEGER);
+        optionTypes.put(Boolean.class, OptionType.BOOLEAN);
+        optionTypes.put(Boolean.TYPE, OptionType.BOOLEAN);
+        optionTypes.put(User.class, OptionType.USER);
+        optionTypes.put(TextChannel.class, OptionType.CHANNEL);
+        optionTypes.put(VoiceChannel.class, OptionType.CHANNEL);
+        optionTypes.put(Category.class, OptionType.CHANNEL);
+        optionTypes.put(Role.class, OptionType.ROLE);
+        optionTypes.put(IMentionable.class, OptionType.MENTIONABLE);
 
         slashCommandClasses.add(TestSlashCommands.class);
     }
@@ -84,10 +103,13 @@ public class SlashCommandManager implements SlashCommandService {
             SlashCommand.class)).forEach(method -> {
             SlashCommand annotation = method.getAnnotation(SlashCommand.class);
             SlashCommandNode node = resolveNode(
-                annotation.name()); // This should always be a leaf node
-            node.setOptions(discoverOptions(method));
-            node.setClassInstance(object);
-            node.setDescription(annotation.description());
+                annotation.name(), true); // This should always be a leaf node
+            if (node != null) {
+                node.setOptions(discoverOptions(method));
+                node.setClassInstance(object);
+                node.setDescription(annotation.description());
+                node.setMethod(method);
+            }
         });
     }
 
@@ -159,18 +181,91 @@ public class SlashCommandManager implements SlashCommandService {
             event.reply("Slash commands currently only work in guilds").setEphemeral(true).queue();
             return;
         }
-        event.reply("Testy mctestface " + event.getName() + ":" + event.getSubcommandName())
-            .queue();
+        String command = event.getName();
+        if (event.getSubcommandGroup() != null) {
+            command += String
+                .format(" %s %s", event.getSubcommandGroup(), event.getSubcommandName());
+        } else if (event.getSubcommandName() != null) {
+            command += String.format(" %s", event.getSubcommandName());
+        }
+        SlashCommandNode n = resolveNode(command, false);
+        if (n != null) {
+            Parameter[] methodParams = n.getMethod().getParameters();
+            Object[] parameters = new Object[methodParams.length];
+            parameters[0] = event;
+            for (int i = 1; i < methodParams.length; i++) {
+                Parameter param = methodParams[i];
+                CommandOption annotation = param.getAnnotation(CommandOption.class);
+                OptionMapping map = event.getOption(annotation.value());
+                if (map != null) {
+                    switch (map.getType()) {
+                        case UNKNOWN:
+                        case SUB_COMMAND:
+                        case SUB_COMMAND_GROUP:
+                            break;
+                        case STRING:
+                            parameters[i] = map.getAsString();
+                            break;
+                        case INTEGER:
+                            long val = map.getAsLong();
+                            if (param.getType() == Integer.class
+                                || param.getType() == Integer.TYPE) {
+                                parameters[i] = (int) val;
+                            } else {
+                                parameters[i] = val;
+                            }
+                            break;
+                        case BOOLEAN:
+                            parameters[i] = map.getAsBoolean();
+                            break;
+                        case USER:
+                            parameters[i] = map.getAsUser();
+                            break;
+                        case CHANNEL:
+                            GuildChannel channel = map.getAsGuildChannel();
+                            Class<?> expectedType = param.getType();
+                            if (!expectedType.isAssignableFrom(channel.getClass())) {
+                                event.reply(
+                                    ":no_entry: Wrong channel type provided. Expected: "
+                                        + localizeChannelType(expectedType))
+                                    .setEphemeral(true).queue();
+                                return;
+                            } else {
+                                parameters[i] = expectedType.cast(channel);
+                            }
+                            break;
+                        case ROLE:
+                            parameters[i] = map.getAsRole();
+                            break;
+                        case MENTIONABLE:
+                            parameters[i] = map.getAsMentionable();
+                            break;
+                    }
+                } else {
+                    log.debug("Option {} does not exist on command {}", annotation.value(),
+                        command);
+                }
+            }
+            try {
+                n.getMethod().invoke(n.getClassInstance(), parameters);
+            } catch (InvocationTargetException | IllegalAccessException e) {
+                log.error("Error invoking command {}", command, e);
+                event.reply(":no_entry: Command Failed: " + (e.getMessage() != null ? e.getMessage()
+                    : "An unknown error occurred")).setEphemeral(true).queue();
+            }
+
+        }
     }
 
     /**
      * Resolves a node based on its path (Space delimited)
      *
-     * @param path The path to resolve
+     * @param path   The path to resolve
+     * @param create If empty nodes should be created
      *
      * @return The node
      */
-    private SlashCommandNode resolveNode(String path) {
+    private SlashCommandNode resolveNode(String path, boolean create) {
         String[] parts = path.split(" ");
         if (parts.length > 3) {
             throw new IllegalArgumentException("Cannot register sub-sub commands");
@@ -179,11 +274,15 @@ public class SlashCommandManager implements SlashCommandService {
         for (String p : parts) {
             SlashCommandNode potential = curr.getByChildName(p);
             if (potential == null) {
-                // There's no child node with this name
-                SlashCommandNode newChild = new SlashCommandNode(p);
-                curr.getChildren().add(newChild);
-                newChild.setParent(curr);
-                curr = newChild;
+                if (create) {
+                    // There's no child node with this name
+                    SlashCommandNode newChild = new SlashCommandNode(p);
+                    curr.getChildren().add(newChild);
+                    newChild.setParent(curr);
+                    curr = newChild;
+                } else {
+                    return null;
+                }
             } else {
                 curr = potential;
             }
@@ -196,6 +295,7 @@ public class SlashCommandManager implements SlashCommandService {
         List<OptionData> options = new ArrayList<>();
         Arrays.stream(m.getParameters()).filter(p -> p.isAnnotationPresent(CommandOption.class))
             .forEach(param -> {
+
                 OptionType type = optionTypes.get(param.getType());
                 if (type == null) {
                     throw new IllegalArgumentException(
@@ -205,8 +305,24 @@ public class SlashCommandManager implements SlashCommandService {
                 OptionData data = new OptionData(type, annotation.value(),
                     annotation.description());
                 data.setRequired(param.isAnnotationPresent(Nonnull.class));
+                if (param.getType().isPrimitive()) {
+                    data.setRequired(true); // Primatives cannot be null
+                }
                 options.add(data);
             });
         return options;
+    }
+
+    private String localizeChannelType(Class<?> type) {
+        if (type == VoiceChannel.class) {
+            return "Voice Channel";
+        }
+        if (type == TextChannel.class) {
+            return "Text Channel";
+        }
+        if (type == Category.class) {
+            return "Category";
+        }
+        return type.toString();
     }
 }
