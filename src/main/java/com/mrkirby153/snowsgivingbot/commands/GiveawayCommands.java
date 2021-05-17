@@ -45,14 +45,16 @@ public class GiveawayCommands {
     private final ShardManager shardManager;
 
     @Command(name = "start", arguments = {"<time:string>", "<prize:string...>"}, clearance = 100,
-        permissions = {Permission.MESSAGE_EMBED_LINKS, Permission.MESSAGE_HISTORY, Permission.MESSAGE_ADD_REACTION})
+        permissions = {Permission.MESSAGE_EMBED_LINKS, Permission.MESSAGE_HISTORY,
+            Permission.MESSAGE_ADD_REACTION})
     public void createGiveaway(Context context, CommandContext cmdContext) {
         startGiveaway(context, cmdContext, false);
     }
 
 
     @Command(name = "sstart", arguments = {"<time:string>", "<prize:string...>"}, clearance = 100,
-        permissions = {Permission.MESSAGE_EMBED_LINKS, Permission.MESSAGE_HISTORY, Permission.MESSAGE_ADD_REACTION})
+        permissions = {Permission.MESSAGE_EMBED_LINKS, Permission.MESSAGE_HISTORY,
+            Permission.MESSAGE_ADD_REACTION})
     public void privateGiveaway(Context context, CommandContext cmdContext) {
         startGiveaway(context, cmdContext, true);
     }
@@ -87,11 +89,15 @@ public class GiveawayCommands {
     }
 
 
-    @Command(name = "end", arguments = {"<mid:snowflake>"}, clearance = 100, permissions = {Permission.MESSAGE_EMBED_LINKS, Permission.MESSAGE_HISTORY})
+    @Command(name = "end", arguments = {"<mid:snowflake>"}, clearance = 100, permissions = {
+        Permission.MESSAGE_EMBED_LINKS, Permission.MESSAGE_HISTORY})
     public void endGiveaway(Context context, CommandContext cmdContext) {
         try {
             GiveawayEntity entity = gr.findByMessageId(cmdContext.getNotNull("mid"))
                 .orElseThrow(() -> new CommandException("Giveaway not found!"));
+            if (!entity.getGuildId().equals(context.getGuild().getId())) {
+                throw new CommandException("Giveaway was not found");
+            }
             giveawayService.endGiveaway(cmdContext.getNotNull("mid"));
             context.getChannel().sendMessage("Ended giveaway " + entity.getName()).queue();
         } catch (IllegalArgumentException e) {
@@ -99,7 +105,9 @@ public class GiveawayCommands {
         }
     }
 
-    @Command(name = "reroll", arguments = {"<mid:snowflake>", "[users:string...]"}, clearance = 100, permissions = {Permission.MESSAGE_EMBED_LINKS, Permission.MESSAGE_HISTORY})
+    @Command(name = "reroll", arguments = {"<mid:snowflake>",
+        "[users:string...]"}, clearance = 100, permissions = {Permission.MESSAGE_EMBED_LINKS,
+        Permission.MESSAGE_HISTORY})
     public void reroll(Context context, CommandContext cmdContext) {
         GiveawayEntity entity = gr.findByMessageId(cmdContext.getNotNull("mid"))
             .orElseThrow(() -> new CommandException("Giveaway not found"));
@@ -127,7 +135,7 @@ public class GiveawayCommands {
                     }
                 }
             } else {
-              sb.append(" All users will be rerolled");
+                sb.append(" All users will be rerolled");
             }
             String[] finalUsers = users;
             context.getChannel().sendMessage(sb.toString()).submit()
@@ -138,7 +146,7 @@ public class GiveawayCommands {
                             .sendMessage("An error occurred: " + throwable.getMessage()).queue();
                         return null;
                     }
-                    if(result) {
+                    if (result) {
                         context.getChannel().sendMessage("Rerolling giveaway...").queue();
                         giveawayService.reroll(entity.getMessageId(), finalUsers);
                     } else {
@@ -172,6 +180,9 @@ public class GiveawayCommands {
     public void setPrivate(Context context, CommandContext commandContext) {
         GiveawayEntity entity = gr.findByMessageId(commandContext.getNotNull("mid"))
             .orElseThrow(() -> new CommandException("Giveaway was not found"));
+        if (!entity.getGuildId().equals(context.getGuild().getId())) {
+            throw new CommandException("Giveaway was not found");
+        }
         if (entity.getState() == GiveawayState.ENDED) {
             throw new CommandException("Giveaway has already ended");
         }
@@ -187,6 +198,9 @@ public class GiveawayCommands {
     public void getWinners(Context context, CommandContext commandContext) {
         GiveawayEntity entity = gr.findByMessageId(commandContext.getNotNull("mid"))
             .orElseThrow(() -> new CommandException("Giveaway was not found"));
+        if (!entity.getGuildId().equals(context.getGuild().getId())) {
+            throw new CommandException("Giveaway was not found");
+        }
         if (entity.getState() != GiveawayState.ENDED) {
             throw new CommandException("Giveaway has not ended yet!");
         }
@@ -220,6 +234,9 @@ public class GiveawayCommands {
     public void setWinners(Context context, CommandContext commandContext) {
         GiveawayEntity entity = gr.findByMessageId(commandContext.getNotNull("mid"))
             .orElseThrow(() -> new CommandException("Giveaway was not found"));
+        if (!entity.getGuildId().equals(context.getGuild().getId())) {
+            throw new CommandException("Giveaway was not found");
+        }
         if (entity.getState() != GiveawayState.RUNNING) {
             throw new CommandException("Giveaway is not running");
         }

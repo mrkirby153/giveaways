@@ -1,5 +1,6 @@
 package com.mrkirby153.snowsgivingbot.services.slashcommands;
 
+import com.mrkirby153.botcore.command.CommandException;
 import com.mrkirby153.snowsgivingbot.commands.slashcommands.AdminSlashCommands;
 import com.mrkirby153.snowsgivingbot.commands.slashcommands.GiveawaySlashCommands;
 import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
@@ -174,7 +175,7 @@ public class SlashCommandManager implements SlashCommandService {
         if (this.slashCommandGuilds.isBlank()) {
             log.info("Updating commands globally");
             JDA jda = shardManager.getShardById(0);
-            if(jda != null) {
+            if (jda != null) {
                 jda.updateCommands().addCommands(commands).queue();
             }
         } else {
@@ -240,7 +241,8 @@ public class SlashCommandManager implements SlashCommandService {
                             Class<?> expectedType = param.getType();
                             if (!expectedType.isAssignableFrom(channel.getClass())) {
                                 event.reply(
-                                    ":no_entry: Wrong channel type provided. Expected: "
+                                    ":no_entry: Wrong channel type provided for `" + map.getName()
+                                        + "` Expected: "
                                         + localizeChannelType(expectedType))
                                     .setEphemeral(true).queue();
                                 return;
@@ -275,6 +277,14 @@ public class SlashCommandManager implements SlashCommandService {
             try {
                 n.getMethod().invoke(n.getClassInstance(), parameters);
             } catch (InvocationTargetException | IllegalAccessException e) {
+                if (e instanceof InvocationTargetException) {
+                    Throwable t = e.getCause();
+                    if (t instanceof CommandException) {
+                        event.reply(":no_entry: " + (t.getMessage() != null ? t.getMessage()
+                            : "An unknown error occurred")).setEphemeral(true).queue();
+                        return;
+                    }
+                }
                 log.error("Error invoking command {}", command, e);
                 event.reply(":no_entry: Command Failed: " + (e.getMessage() != null ? e.getMessage()
                     : "An unknown error occurred")).setEphemeral(true).queue();
