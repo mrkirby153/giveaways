@@ -9,6 +9,7 @@ import com.mrkirby153.snowsgivingbot.services.slashcommands.annotations.CommandO
 import com.mrkirby153.snowsgivingbot.services.slashcommands.annotations.SlashCommand;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Category;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.GuildChannel;
@@ -194,6 +195,13 @@ public class SlashCommandManager implements SlashCommandService {
         // Only accept slash commands in servers
         if (!event.isFromGuild()) {
             event.reply("Slash commands currently only work in guilds").setEphemeral(true).queue();
+            return;
+        }
+        if (!event.getGuild().getSelfMember()
+            .hasPermission(event.getTextChannel(), Permission.MESSAGE_WRITE)) {
+            event.reply(
+                "I don't have permission to respond in this channel! Ensure I have permission to send messages")
+                .setEphemeral(true).queue();
             return;
         }
         String command = event.getName();
