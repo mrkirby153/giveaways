@@ -3,6 +3,8 @@ package com.mrkirby153.snowsgivingbot.services.slashcommands;
 import com.mrkirby153.botcore.command.CommandException;
 import com.mrkirby153.snowsgivingbot.commands.slashcommands.AdminSlashCommands;
 import com.mrkirby153.snowsgivingbot.commands.slashcommands.GiveawaySlashCommands;
+import com.mrkirby153.snowsgivingbot.commands.slashcommands.InfoSlashCommands;
+import com.mrkirby153.snowsgivingbot.commands.slashcommands.ManagementSlashCommands;
 import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import com.mrkirby153.snowsgivingbot.services.PermissionService;
 import com.mrkirby153.snowsgivingbot.services.slashcommands.annotations.CommandOption;
@@ -66,6 +68,8 @@ public class SlashCommandManager implements SlashCommandService {
 
         slashCommandClasses.add(AdminSlashCommands.class);
         slashCommandClasses.add(GiveawaySlashCommands.class);
+        slashCommandClasses.add(ManagementSlashCommands.class);
+        slashCommandClasses.add(InfoSlashCommands.class);
     }
 
     private final ShardManager shardManager;

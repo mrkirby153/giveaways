@@ -151,9 +151,6 @@ public class GiveawaySlashCommands {
         if (winMessage.length() < 2000) {
             event.reply(winMessage).setEphemeral(isPrivate).queue();
         } else {
-            if (isPrivate) {
-                throw new CommandException("Message is too long, cannot send privately");
-            }
             StringBuilder sb = new StringBuilder();
             sb.append(String.format("The winners for **%s** are\n", entity.getName()));
             boolean firstMessage = true;
@@ -161,19 +158,19 @@ public class GiveawaySlashCommands {
                 String toAppend = String.format("<@!%s> ", winner);
                 if (sb.length() + toAppend.length() > 1990) {
                     if (firstMessage) {
-                        event.reply(sb.toString()).queue();
+                        event.reply(sb.toString()).setEphemeral(isPrivate).queue();
                         firstMessage = false;
                     } else {
-                        event.getChannel().sendMessage(sb.toString()).queue();
+                        event.getHook().sendMessage(sb.toString()).setEphemeral(isPrivate).queue();
                     }
                 }
                 sb.append(toAppend);
             }
             if (sb.length() > 0) {
                 if (firstMessage) {
-                    event.reply(sb.toString()).queue();
+                    event.reply(sb.toString()).setEphemeral(isPrivate).queue();
                 } else {
-                    event.getChannel().sendMessage(sb.toString()).queue();
+                    event.getHook().sendMessage(sb.toString()).setEphemeral(isPrivate).queue();
                 }
             }
         }
