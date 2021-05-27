@@ -11,6 +11,8 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import javax.annotation.PostConstruct;
 import javax.transaction.Transactional;
@@ -19,6 +21,15 @@ import javax.transaction.Transactional;
 @RequiredArgsConstructor
 @Slf4j
 public class SettingManager implements SettingService {
+
+    /**
+     * A list of setting keys that are considered "alpha"
+     */
+    private static final List<String> alphaSettings = new ArrayList<>();
+
+    static {
+        alphaSettings.add(Settings.USE_BUTTONS.getKey());
+    }
 
     private final SettingsRepository settingsRepository;
     private final ObjectMapper objectMapper;
@@ -89,5 +100,51 @@ public class SettingManager implements SettingService {
     public void reset(GuildSetting<?> setting, String guildId) {
         log.debug("Resetting {} on {}", setting.getKey(), guildId);
         settingsRepository.deleteByGuildAndKey(guildId, setting.getKey());
+    }
+
+    @Override
+    @Transactional
+    public void optIntoAlpha(String alpha, Guild guild) {
+        if (!alphaSettings.contains(alpha)) {
+            throw new IllegalArgumentException("Provided setting was not an alpha setting");
+        }
+        List<String> existingAlphas = get(Settings.INCLUDED_ALPHAS, guild);
+        if (existingAlphas == null) {
+            // Guild is not in any alphas
+            existingAlphas = new ArrayList<>();
+        }
+        existingAlphas.add(alpha);
+        set(Settings.INCLUDED_ALPHAS, guild, existingAlphas);
+    }
+
+    @Override
+    @Transactional
+    public void removeFromAlpha(String alpha, Guild guild) {
+        List<String> existingAlphas = get(Settings.INCLUDED_ALPHAS, guild);
+        if (existingAlphas == null) {
+            // Guild is not in any alphas, nothing to do
+            return;
+        }
+        existingAlphas.remove(alpha);
+        if (existingAlphas.isEmpty()) {
+            reset(Settings.INCLUDED_ALPHAS, guild);
+        } else {
+            set(Settings.INCLUDED_ALPHAS, guild, existingAlphas);
+        }
+    }
+
+    @Override
+    public boolean inAlpha(String alpha, Guild guild) {
+        List<String> existing = get(Settings.INCLUDED_ALPHAS, guild);
+        if (existing == null) {
+            return false;
+        } else {
+            return existing.contains(alpha);
+        }
+    }
+
+    @Override
+    public boolean isAlpha(GuildSetting<?> setting) {
+        return alphaSettings.contains(setting.getKey());
     }
 }

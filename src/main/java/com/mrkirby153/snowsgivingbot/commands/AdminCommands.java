@@ -14,6 +14,7 @@ import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import com.mrkirby153.snowsgivingbot.services.backfill.BackfillTask;
 import com.mrkirby153.snowsgivingbot.services.backfill.GiveawayBackfillService;
 import com.mrkirby153.snowsgivingbot.services.setting.SettingService;
+import com.mrkirby153.snowsgivingbot.services.setting.Settings;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
@@ -23,7 +24,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -199,5 +203,45 @@ public class AdminCommands {
             .sendMessage(
                 "Distributed " + count + " giveaways for guild **" + context.getGuild().getName()
                     + "**").queue();
+    }
+
+    @Command(name = "add", parent = "alpha", clearance = 101, arguments = {"<guild:snowflake>",
+        "<alpha:string...>"})
+    public void alphaAdd(Context context, CommandContext commandContext) {
+        Guild guild = shardManager.getGuildById(commandContext.getNotNull("guild"));
+        if (guild == null) {
+            throw new CommandException("Provided guild not found");
+        }
+        settingService.optIntoAlpha(commandContext.getNotNull("alpha"), guild);
+        context.getChannel().sendMessage(
+            "Opted **" + guild.getName() + "** into alpha " + commandContext.get("alpha")).queue();
+    }
+
+    @Command(name = "remove", parent = "alpha", clearance = 101, arguments = {"<guild:snowflake>",
+        "<alpha:string...>"})
+    public void alphaRemove(Context context, CommandContext commandContext) {
+        Guild guild = shardManager.getGuildById(commandContext.getNotNull("guild"));
+        if (guild == null) {
+            throw new CommandException("Provided guild not found");
+        }
+        settingService.removeFromAlpha(commandContext.getNotNull("alpha"), guild);
+        context.getChannel().sendMessage(
+            "Removed **" + guild.getName() + "** from alpha " + commandContext.get("alpha"))
+            .queue();
+    }
+
+    @Command(name = "get", parent = "alpha", clearance = 101, arguments = {"<guild:snowflake>"})
+    public void alphaGet(Context context, CommandContext commandContext) {
+        Guild guild = shardManager.getGuildById(commandContext.getNotNull("guild"));
+        if (guild == null) {
+            throw new CommandException("Provided guild not found");
+        }
+        List<String> alphas = settingService.get(Settings.INCLUDED_ALPHAS, guild);
+        if (alphas == null) {
+            alphas = new ArrayList<>();
+        }
+        context.getChannel().sendMessage(
+            "**" + guild.getName() + "** is in the following alphas: " + alphas.stream().collect(
+                Collectors.joining(","))).queue();
     }
 }

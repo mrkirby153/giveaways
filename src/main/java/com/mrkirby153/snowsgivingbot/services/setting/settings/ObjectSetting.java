@@ -15,7 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ObjectSetting<O> extends AbstractSetting<O> {
 
-    private static ObjectMapper objectMapper;
+    protected static ObjectMapper objectMapper;
 
     private final Class<O> clazz;
 

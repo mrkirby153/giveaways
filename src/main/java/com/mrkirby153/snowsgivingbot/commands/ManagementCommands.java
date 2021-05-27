@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -36,6 +35,14 @@ public class ManagementCommands {
 
     private static final String TADA = "\uD83C\uDF89";
     private static final Map<String, GuildSetting<?>> settingMap = new HashMap<>();
+    private static final Function<String, Boolean> BOOLEAN_PARSER = (input) -> {
+        String lower = input.toLowerCase();
+        if (lower.equals("true") || lower.equals("false")) {
+            return Boolean.parseBoolean(lower);
+        } else {
+            throw new IllegalArgumentException("Enter true or false");
+        }
+    };
 
     static {
         settingMap.put("emote", Settings.GIVEAWAY_EMOTE);
@@ -95,14 +102,7 @@ public class ManagementCommands {
             }));
         editableSettings.add(
             new EditableSetting<>(Settings.DISPLAY_JUMP_LINKS, "Display Jump Links",
-                Object::toString, (input) -> {
-                String lower = input.toLowerCase();
-                if(lower.equals("true") || lower.equals("false")) {
-                    return Boolean.parseBoolean(lower);
-                } else {
-                    throw new IllegalArgumentException("Enter true or false");
-                }
-            }));
+                Object::toString, BOOLEAN_PARSER));
         editableSettings.add(new EditableSetting<>(Settings.HIDE_GIVEAWAYS_DASHBOARD_AGE,
             "Hide Giveaways Older Than", obj -> {
             try {
@@ -111,6 +111,9 @@ public class ManagementCommands {
                 return "Unknown";
             }
         }, Time::parse));
+        editableSettings.add(
+            new EditableSetting<>(Settings.USE_BUTTONS, "Enable Buttons", Object::toString,
+                BOOLEAN_PARSER));
     }
 
     @Command(name = "configure", clearance = 100, permissions = {Permission.MESSAGE_EMBED_LINKS})
@@ -126,6 +129,10 @@ public class ManagementCommands {
             + "configure set emote :package:`");
 
         editableSettings.forEach(setting -> {
+            if (settingService.isAlpha(setting.guildSetting) && !settingService
+                .inAlpha(setting.guildSetting.getKey(), context.getGuild())) {
+                return;
+            }
             String name = String
                 .format("%s (%s)", setting.getFriendlyName(), setting.getGuildSetting().getKey());
             Object o = settingService.get(setting.getGuildSetting(), context.getGuild());
@@ -141,12 +148,13 @@ public class ManagementCommands {
         String key = cmdContext.getNotNull("key");
         String value = cmdContext.getNotNull("value");
 
-        Optional<EditableSetting<?>> settingOpt = editableSettings.stream()
-            .filter(s -> s.getGuildSetting().getKey().equalsIgnoreCase(key)).findFirst();
-        if (settingOpt.isEmpty()) {
+        EditableSetting<?> setting = editableSettings.stream()
+            .filter(s -> s.getGuildSetting().getKey().equalsIgnoreCase(key)).findFirst()
+            .orElseThrow(() -> new CommandException("Setting not found"));
+        if (settingService.isAlpha(setting.guildSetting) && !settingService
+            .inAlpha(setting.guildSetting.getKey(), context.getGuild())) {
             throw new CommandException("Setting not found");
         }
-        EditableSetting<?> setting = settingOpt.get();
         Object val;
         try {
             val = setting.getParser().apply(value);

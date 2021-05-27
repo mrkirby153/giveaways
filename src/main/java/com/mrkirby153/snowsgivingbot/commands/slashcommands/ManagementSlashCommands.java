@@ -33,6 +33,14 @@ public class ManagementSlashCommands {
 
     public static final Pattern EMOTE_PATTERN = Pattern.compile("\\d{17,18}");
     private static final String TADA = "\uD83C\uDF89";
+    private static final Function<String, Boolean> BOOLEAN_PARSER = (input) -> {
+        String lower = input.toLowerCase();
+        if (lower.equals("true") || lower.equals("false")) {
+            return Boolean.parseBoolean(lower);
+        } else {
+            throw new IllegalArgumentException("Enter true or false");
+        }
+    };
     private final List<EditableSetting<?>> editableSettings = new ArrayList<>();
     private final SettingService settingService;
     @Value("${bot.reaction:" + TADA + "}")
@@ -80,14 +88,7 @@ public class ManagementSlashCommands {
             }));
         editableSettings.add(
             new EditableSetting<>(Settings.DISPLAY_JUMP_LINKS, "Display Jump Links",
-                "jumplinks", Objects::toString, (input) -> {
-                String lower = input.toLowerCase();
-                if (lower.equals("true") || lower.equals("false")) {
-                    return Boolean.parseBoolean(lower);
-                } else {
-                    throw new IllegalArgumentException("Enter true or false");
-                }
-            }));
+                "jumplinks", Objects::toString, BOOLEAN_PARSER));
         editableSettings.add(
             new EditableSetting<>(Settings.HIDE_GIVEAWAYS_DASHBOARD_AGE,
                 "Hide Giveaways Older Than", "dashboard-age", (obj) -> {
@@ -98,6 +99,9 @@ public class ManagementSlashCommands {
                 }
             }, Time::parse)
         );
+        editableSettings.add(
+            new EditableSetting<>(Settings.USE_BUTTONS, "Enable Buttons", "buttons",
+                Objects::toString, BOOLEAN_PARSER));
     }
 
     @SlashCommand(name = "configure list", clearance = 100, description = "Get a list of all the configuration settings")
@@ -109,6 +113,10 @@ public class ManagementSlashCommands {
         eb.setDescription(
             "The following settings are configured on this server.\n\nUse /configure set <option> <value> to change");
         editableSettings.forEach(setting -> {
+            if (settingService.isAlpha(setting.getSetting()) && !settingService
+                .inAlpha(setting.getSetting().getKey(), event.getGuild())) {
+                return;
+            }
             String name = String.format("%s (%s)", setting.getFriendlyName(), setting.getKey());
             Object o = settingService.get(setting.getSetting(), event.getGuild());
             String display = setting.displayValue.apply(o);
@@ -124,6 +132,10 @@ public class ManagementSlashCommands {
         EditableSetting<?> setting = this.editableSettings.stream()
             .filter(s -> s.getKey().equalsIgnoreCase(key)).findFirst()
             .orElseThrow(() -> new CommandException("Setting not found"));
+        if (settingService.isAlpha(setting.getSetting()) && !settingService
+            .inAlpha(setting.getSetting().getKey(), event.getGuild())) {
+            throw new CommandException("Setting not found");
+        }
         Object val;
         try {
             val = setting.getParse().apply(value);
