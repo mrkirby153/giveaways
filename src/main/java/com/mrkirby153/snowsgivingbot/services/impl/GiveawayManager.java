@@ -31,6 +31,7 @@ import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageReaction.ReactionEmote;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.events.interaction.ButtonClickEvent;
 import net.dv8tion.jda.api.events.message.MessageDeleteEvent;
 import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
 import net.dv8tion.jda.api.exceptions.ErrorResponseException;
@@ -174,11 +175,16 @@ public class GiveawayManager implements GiveawayService {
         entity.setSecret(secret);
         entity.setGuildId(channel.getGuild().getId());
         entity.setHost(host.getId());
+        entity.setMessageId("<pending>");
+        entity = giveawayRepository.save(entity);
 
-        channel.sendMessage(GiveawayEmbedUtils.renderMessage(entity)).queue(m -> {
-            entity.setMessageId(m.getId());
-            addGiveawayEmote(m);
-            GiveawayEntity save = giveawayRepository.save(entity);
+        GiveawayEntity finalEntity = entity;
+        channel.sendMessage(GiveawayEmbedUtils.renderMessage(entity, settingService)).queue(m -> {
+            finalEntity.setMessageId(m.getId());
+            if(!settingService.get(Settings.USE_BUTTONS, channel.getGuild())) {
+                addGiveawayEmote(m);
+            }
+            GiveawayEntity save = giveawayRepository.save(finalEntity);
             publisher.publishEvent(new GiveawayStartedEvent(save));
             giveawaysStartedCounter.increment();
             cf.complete(save);
@@ -324,7 +330,7 @@ public class GiveawayManager implements GiveawayService {
             return;
         }
         chan.retrieveMessageById(entity.getMessageId()).queue(msg -> {
-            msg.editMessage(GiveawayEmbedUtils.renderMessage(entity)).queue();
+            msg.editMessage(GiveawayEmbedUtils.renderMessage(entity, settingService)).queue();
         });
     }
 
@@ -411,7 +417,7 @@ public class GiveawayManager implements GiveawayService {
             if (c.getGuild().getSelfMember()
                 .hasPermission(c, Permission.MESSAGE_WRITE, Permission.MESSAGE_READ)) {
                 c.retrieveMessageById(entity.getMessageId()).queue(m -> {
-                    m.editMessage(GiveawayEmbedUtils.renderMessage(entity)).queue();
+                    m.editMessage(GiveawayEmbedUtils.renderMessage(entity, settingService)).queue();
                 });
             }
         }
@@ -590,7 +596,7 @@ public class GiveawayManager implements GiveawayService {
                         includeLink = false;
                     }
                     // Force disable jump links if they're disabled in a guild setting
-                    if(!settingService.get(Settings.DISPLAY_JUMP_LINKS, channel.getGuild())) {
+                    if (!settingService.get(Settings.DISPLAY_JUMP_LINKS, channel.getGuild())) {
                         includeLink = false;
                     }
                     generateEndMessage(giveaway, includeLink)
@@ -665,6 +671,37 @@ public class GiveawayManager implements GiveawayService {
                 entityCache.put(event.getMessageId(), cached);
             }
             enterGiveaway(event.getUser(), cached);
+        }
+    }
+
+    @EventListener
+    @Async
+    public void onButtonClick(ButtonClickEvent event) {
+        String[] id = event.getComponentId().split(":");
+        if (id.length != 2) {
+            log.warn("Invalid button component id: " + event.getComponentId());
+            return;
+        }
+        String action = id[0];
+        String giveaway = id[1];
+        Optional<GiveawayEntity> e = giveawayRepository.findById(Long.parseLong(giveaway));
+        if (e.isEmpty()) {
+            log.warn("Giveaway with {} not found", giveaway);
+            return;
+        }
+        GiveawayEntity ge = e.get();
+        if (action.equals("enter")) {
+            event.reply("You have been entered into " + ge.getName()).setEphemeral(true).queue();
+            enterGiveaway(event.getUser(), ge);
+        }
+        if (action.equals("check")) {
+            boolean entered = entrantRepository
+                .existsByGiveawayAndUserId(ge, event.getUser().getId());
+            if (entered) {
+                event.reply("You are entered into " + ge.getName()).setEphemeral(true).queue();
+            } else {
+                event.reply("You are **not** entered into " + ge.getName()).setEphemeral(true).queue();
+            }
         }
     }
 

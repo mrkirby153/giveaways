@@ -49,6 +49,7 @@ public class ManagementCommands {
         settingMap.put("prefix", Settings.COMMAND_PREFIX);
         settingMap.put("jumplinks", Settings.DISPLAY_JUMP_LINKS);
         settingMap.put("dashboard-age", Settings.HIDE_GIVEAWAYS_DASHBOARD_AGE);
+        settingMap.put("buttons", Settings.USE_BUTTONS);
     }
 
     private final List<EditableSetting<?>> editableSettings = new ArrayList<>();
