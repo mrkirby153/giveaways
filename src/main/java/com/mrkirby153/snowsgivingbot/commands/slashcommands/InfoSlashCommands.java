@@ -1,8 +1,8 @@
 package com.mrkirby153.snowsgivingbot.commands.slashcommands;
 
+import com.mrkirby153.botcore.command.slashcommand.SlashCommand;
 import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
-import com.mrkirby153.snowsgivingbot.services.slashcommands.annotations.SlashCommand;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;

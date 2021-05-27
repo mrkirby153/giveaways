@@ -1,6 +1,8 @@
 package com.mrkirby153.snowsgivingbot.commands.slashcommands;
 
 import com.mrkirby153.botcore.command.CommandException;
+import com.mrkirby153.botcore.command.slashcommand.SlashCommand;
+import com.mrkirby153.botcore.command.slashcommand.SlashCommandParameter;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayRoleEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayState;
@@ -9,8 +11,6 @@ import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.services.ConfirmationService;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService;
 import com.mrkirby153.snowsgivingbot.services.PermissionService;
-import com.mrkirby153.snowsgivingbot.services.slashcommands.annotations.CommandOption;
-import com.mrkirby153.snowsgivingbot.services.slashcommands.annotations.SlashCommand;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.Permission;
@@ -26,7 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 @Component
 @AllArgsConstructor
@@ -42,13 +42,13 @@ public class GiveawaySlashCommands {
 
     @SlashCommand(name = "start", description = "Starts a new giveaway", clearance = 100)
     public void start(SlashCommandEvent event,
-        @CommandOption(value = "duration", description = "How long the giveaway is to last (i.e. 3h)") @Nonnull String duration,
-        @CommandOption(value = "prize", description = "The prize to give away") @Nonnull String prize,
-        @CommandOption(value = "winners", description = "The amount of winners (default 1)") Integer winners,
-        @CommandOption(value = "channel", description = "The channel to run the giveaway in (defaults to the current channel)")
-            TextChannel textChannel,
-        @CommandOption(value = "host", description = "The host of the giveaway (defaults to you)")
-            User host) {
+        @SlashCommandParameter(name = "duration", description = "How long the giveaway is to last (i.e. 3h)") String duration,
+        @SlashCommandParameter(name = "prize", description = "The prize to give away") String prize,
+        @SlashCommandParameter(name = "winners", description = "The amount of winners (default 1)") @Nullable Integer winners,
+        @SlashCommandParameter(name = "channel", description = "The channel to run the giveaway in (defaults to the current channel)")
+            @Nullable TextChannel textChannel,
+        @SlashCommandParameter(name = "host", description = "The host of the giveaway (defaults to you)")
+            @Nullable User host) {
         if (winners == null) {
             winners = 1;
         }
@@ -75,7 +75,7 @@ public class GiveawaySlashCommands {
 
     @SlashCommand(name = "end", description = "Ends a giveaway", clearance = 100)
     public void endGiveaway(SlashCommandEvent event,
-        @CommandOption(value = "message_id", description = "The message id of the giveaway to end") @Nonnull String messageId) {
+        @SlashCommandParameter(name = "message_id", description = "The message id of the giveaway to end") String messageId) {
         GiveawayEntity entity = gr.findByMessageId(messageId)
             .orElseThrow(() -> new CommandException("Giveaway not found"));
         giveawayService.endGiveaway(messageId);
@@ -84,8 +84,8 @@ public class GiveawaySlashCommands {
 
     @SlashCommand(name = "reroll", description = "Rerolls the winners of a giveaway", clearance = 100)
     public void reroll(SlashCommandEvent event,
-        @CommandOption(value = "message_id", description = "The message id of the giveaway to reroll") @Nonnull String messageId,
-        @CommandOption(value = "users", description = "A list of user ids to reroll (comma separated)") String userIds) {
+        @SlashCommandParameter(name = "message_id", description = "The message id of the giveaway to reroll") String messageId,
+        @SlashCommandParameter(name = "users", description = "A list of user ids to reroll (comma separated)") @Nullable String userIds) {
         GiveawayEntity entity = gr.findByMessageId(messageId)
             .orElseThrow(() -> new CommandException("Giveaway not found"));
         event.deferReply().queue(hook -> {
@@ -133,8 +133,8 @@ public class GiveawaySlashCommands {
 
     @SlashCommand(name = "winners get", description = "Gets the winners of a giveaway", clearance = 100)
     public void getWinners(SlashCommandEvent event,
-        @CommandOption(value = "message_id", description = "The message id of the giveaway") @Nonnull String messageId,
-        @CommandOption(value = "private", description = "If the winners should be displayed only to you (Default: false)") Boolean isPrivate) {
+        @SlashCommandParameter(name = "message_id", description = "The message id of the giveaway") String messageId,
+        @SlashCommandParameter(name = "private", description = "If the winners should be displayed only to you (Default: false)") @Nullable Boolean isPrivate) {
         if (isPrivate == null) {
             isPrivate = false;
         }
@@ -178,8 +178,8 @@ public class GiveawaySlashCommands {
 
     @SlashCommand(name = "winners set", description = "Sets the number of winners for a giveaway", clearance = 100)
     public void setWinners(SlashCommandEvent event,
-        @CommandOption(value = "message_id", description = "The message id of the gveaway") @Nonnull String messageId,
-        @CommandOption(value = "winners", description = "The number of winners") int winners) {
+        @SlashCommandParameter(name = "message_id", description = "The message id of the gveaway") String messageId,
+        @SlashCommandParameter(name = "winners", description = "The number of winners") int winners) {
         GiveawayEntity entity = gr.findByMessageId(messageId)
             .orElseThrow(() -> new CommandException("Giveaway was not found"));
         if (!entity.getGuildId().equals(event.getGuild().getId())) {
@@ -196,7 +196,7 @@ public class GiveawaySlashCommands {
 
     @SlashCommand(name = "role add", description = "Adds a role as a giveaway manager", clearance = 100)
     public void addRole(SlashCommandEvent event,
-        @CommandOption(value = "role", description = "The role") @Nonnull Role role) {
+        @SlashCommandParameter(name = "role", description = "The role") Role role) {
         ps.addGiveawayRole(role);
         event.reply("Added " + role.getAsMention()
             + " as a giveaway role. Users with this role can now manage giveaways").allowedMentions(
@@ -205,7 +205,7 @@ public class GiveawaySlashCommands {
 
     @SlashCommand(name = "role remove", description = "Removes a role as a giveaway manager", clearance = 100)
     public void removeRole(SlashCommandEvent event,
-        @CommandOption(value = "role", description = "The role") @Nonnull Role role) {
+        @SlashCommandParameter(name = "role", description = "The role") Role role) {
         ps.removeGiveawayRole(role);
         event.reply("Removed " + role.getAsMention() + " from giveaway roles")
             .allowedMentions(Collections.emptyList()).queue();

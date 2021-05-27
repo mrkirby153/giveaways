@@ -1,6 +1,6 @@
 package com.mrkirby153.snowsgivingbot.commands.slashcommands;
 
-import com.mrkirby153.snowsgivingbot.services.slashcommands.annotations.SlashCommand;
+import com.mrkirby153.botcore.command.slashcommand.SlashCommand;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;

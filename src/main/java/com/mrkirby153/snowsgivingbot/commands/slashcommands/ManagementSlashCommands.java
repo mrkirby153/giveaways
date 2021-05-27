@@ -1,12 +1,12 @@
 package com.mrkirby153.snowsgivingbot.commands.slashcommands;
 
 import com.mrkirby153.botcore.command.CommandException;
+import com.mrkirby153.botcore.command.slashcommand.SlashCommand;
+import com.mrkirby153.botcore.command.slashcommand.SlashCommandParameter;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService.ConfiguredGiveawayEmote;
 import com.mrkirby153.snowsgivingbot.services.setting.GuildSetting;
 import com.mrkirby153.snowsgivingbot.services.setting.SettingService;
 import com.mrkirby153.snowsgivingbot.services.setting.Settings;
-import com.mrkirby153.snowsgivingbot.services.slashcommands.annotations.CommandOption;
-import com.mrkirby153.snowsgivingbot.services.slashcommands.annotations.SlashCommand;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
@@ -119,7 +119,8 @@ public class ManagementSlashCommands {
 
     @SlashCommand(name = "configure set", clearance = 100, description = "Sets a setting")
     public void set(SlashCommandEvent event,
-        @CommandOption(value = "key", description = "The key to set") String key, @CommandOption(value = "value", description = "The value to set the key to") String value) {
+        @SlashCommandParameter(name = "key", description = "The key to set") String key,
+        @SlashCommandParameter(name = "value", description = "The value to set the key to") String value) {
         EditableSetting<?> setting = this.editableSettings.stream()
             .filter(s -> s.getKey().equalsIgnoreCase(key)).findFirst()
             .orElseThrow(() -> new CommandException("Setting not found"));
@@ -137,7 +138,8 @@ public class ManagementSlashCommands {
     }
 
     @SlashCommand(name = "configure reset", clearance = 100, description = "Resets a setting")
-    public void reset(SlashCommandEvent event, @CommandOption(value = "key", description = "The key to reset") String key) {
+    public void reset(SlashCommandEvent event,
+        @SlashCommandParameter(name = "key", description = "The key to reset") String key) {
         EditableSetting<?> setting = this.editableSettings.stream()
             .filter(s -> s.getKey().equalsIgnoreCase(key)).findFirst()
             .orElseThrow(() -> new CommandException("Setting not found"));
