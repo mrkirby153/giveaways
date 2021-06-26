@@ -104,4 +104,4 @@ bootJar {
     }
 }
 
-// bootJar.dependsOn(':web:assemble')
+bootJar.dependsOn(':web:assemble')
