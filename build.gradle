@@ -58,7 +58,7 @@ dependencies {
         exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
     }
 
-    implementation 'com.github.dv8fromtheworld:jda:f9578019ce5c7a5446cfdf1cf14677a07e7c6a4c'
+    implementation 'net.dv8tion:JDA:4.3.0_283'
     implementation 'com.mrkirby153:bot-core:3.1-SNAPSHOT'
     implementation 'me.mrkirby153:KirbyUtils-Common:3.3'
     implementation 'com.google.guava:guava:29.0-jre'
