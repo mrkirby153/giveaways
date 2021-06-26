@@ -16,7 +16,7 @@
     "@types/react-router-dom": "^5.1.5",
     "@types/sockjs-client": "^1.5.0",
     "@types/stompjs": "^2.3.4",
-    "axios": "^0.19.2",
+    "axios": "^0.21.1",
     "bootstrap": "^4.5.0",
     "lodash": "^4.17.15",
     "moment": "^2.25.3",
