@@ -20,8 +20,6 @@ import com.mrkirby153.snowsgivingbot.services.setting.Settings;
 import com.mrkirby153.snowsgivingbot.utils.GiveawayEmbedUtils;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
 import net.dv8tion.jda.api.Permission;
@@ -53,18 +51,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -92,8 +85,6 @@ public class GiveawayManager implements GiveawayService {
 
     private final Map<String, GiveawayEntity> entityCache = new HashMap<>();
 
-    private final AtomicLong counter = new AtomicLong(0);
-
     private final String emoji;
     private final boolean custom;
     private final String emoteId;
@@ -101,14 +92,12 @@ public class GiveawayManager implements GiveawayService {
     private final Object endingGiveawayLock = new Object();
     private final Random random = new Random();
     private final List<Long> endingGiveaways = new CopyOnWriteArrayList<>();
-    private final GiveawayRenderer giveawayRenderer = new GiveawayRenderer();
 
 
     private final Counter giveawayEntrantsCounter;
     private final Counter giveawaysStartedCounter;
     private final Counter giveawaysEndedCounter;
     private final AtomicLong runningGiveawayGauge;
-    private final AtomicInteger giveawaysRenderQueueGauge;
 
     private boolean isReady = false;
 
@@ -139,8 +128,6 @@ public class GiveawayManager implements GiveawayService {
         giveawayEntrantsCounter = meterRegistry.counter("giveaway_entrants");
         giveawaysStartedCounter = meterRegistry.counter("giveaway_started");
         giveawaysEndedCounter = meterRegistry.counter("giveaway_ended");
-        giveawaysRenderQueueGauge = meterRegistry
-            .gauge("giveaways_render_queue", new AtomicInteger(giveawayRenderer.queue.size()));
         runningGiveawayGauge = meterRegistry.gauge("running_giveaways", new AtomicLong(0));
 
         if (emote.matches("\\d{17,18}")) {
@@ -334,62 +321,12 @@ public class GiveawayManager implements GiveawayService {
         });
     }
 
-    /**
-     * Updates all running giveaways that end before the given timestamp
-     *
-     * @param before The timestamp
-     */
-    private void updateGiveaways(Timestamp before) {
-        List<GiveawayEntity> giveaways = giveawayRepository
-            .findAllByEndsAtBeforeAndStateIs(before, GiveawayState.RUNNING);
-        updateMultipleGiveaways(giveaways, false);
-    }
-
     @Scheduled(fixedDelay = 1000L) // 1 Second
     public void updateGiveaways() {
         if (!isReady) {
             return;
         }
         endEndedGiveaways();
-    }
-//
-//    @Scheduled(fixedDelay = 120000L) // 2 minutes
-//    public void updateAllGiveaways() {
-//        if (!isReady) {
-//            return;
-//        }
-//        log.debug("Updating all giveaways");
-//        List<GiveawayEntity> activeGiveaways = giveawayRepository
-//            .findAllByState(GiveawayState.RUNNING);
-//        updateMultipleGiveaways(activeGiveaways, true);
-//    }
-
-    /**
-     * Updates multiple giveaways at the same time
-     *
-     * @param activeGiveaways The list of giveaways to update
-     * @param schedule        If the giveaway update should be spread across the next minute.
-     *                        This is used to prevent running into the global ratelimit
-     */
-    private synchronized void updateMultipleGiveaways(List<GiveawayEntity> activeGiveaways,
-        boolean schedule) {
-        List<GiveawayEntity> filtered = new ArrayList<>(activeGiveaways);
-        filtered.removeIf(entity -> endingGiveaways.contains(entity.getId()));
-        if (!schedule) {
-            filtered.forEach(this.giveawayRenderer::queueUpdate);
-        } else {
-            log.debug("Queueing giveaway updates over the next 60 seconds");
-            Map<Long, List<GiveawayEntity>> bucketed = new HashMap<>();
-            filtered.forEach(g -> {
-                long second = g.getId() % 60;
-                bucketed.computeIfAbsent(second, l -> new ArrayList<>()).add(g);
-            });
-            bucketed.forEach((key, value) -> {
-                log.debug(" - {}: {} giveaways", key, value.size());
-                long time = Instant.now().plusSeconds(key).toEpochMilli();
-                value.forEach(e -> this.giveawayRenderer.queueUpdate(e, time));
-            });
-        }
     }
 
     @Override
@@ -709,137 +646,7 @@ public class GiveawayManager implements GiveawayService {
     @Scheduled(fixedDelay = 1000L)
     public void updateStatGauges() {
         log.trace("Updating gauges");
-        giveawaysRenderQueueGauge.set(giveawayRenderer.queue.size());
         runningGiveawayGauge.set(giveawayRepository.countAllByState(GiveawayState.RUNNING));
     }
 
-    private class GiveawayRenderer {
-
-        private final PriorityBlockingQueue<QueuedRender> queue = new PriorityBlockingQueue<>(11,
-            Comparator.comparingLong(QueuedRender::getUpdateAt));
-
-        private final Object futureLock = new Object();
-        private ScheduledFuture<?> future = null;
-        private long nextRun = 0L;
-        private long nextRunId = 0L;
-
-        public void onUpdate() {
-            log.debug("Running queue update");
-            synchronized (futureLock) {
-                while (queue.peek() != null && queue.peek().updateAt < System.currentTimeMillis()) {
-                    QueuedRender toRender = queue.poll();
-                    if (toRender == null) {
-                        continue;
-                    }
-                    renderGiveaway(toRender.entity);
-                }
-                log.debug("Queue update ran");
-                future = null;
-                nextRun = 0L;
-                nextRunId = 0L;
-            }
-            updateFuture();
-        }
-
-        /**
-         * Queues a giveaway for render
-         *
-         * @param entity   The entity to queue for render
-         * @param renderAt The time when the giveaway should be rendered
-         */
-        public void queueUpdate(GiveawayEntity entity, long renderAt) {
-            QueuedRender render = new QueuedRender(renderAt, entity);
-            if (queue.contains(render)) {
-                log.debug("Skipping render of {} as there's already a render queued", entity);
-            } else {
-                queue.add(render);
-                log.debug("Queueing render of {} in {}", entity,
-                    Time.format(1, renderAt - System.currentTimeMillis()));
-            }
-            updateFuture();
-        }
-
-        /**
-         * Queues a giveaway for render immediately
-         *
-         * @param entity The entity to queue for render
-         */
-        public void queueUpdate(GiveawayEntity entity) {
-            queueUpdate(entity, System.currentTimeMillis());
-        }
-
-        /**
-         * Updates the scheduled future, rescheduling it if necessary
-         */
-        private void updateFuture() {
-            QueuedRender next = queue.peek();
-            if (next == null) {
-                log.debug("empty render queue");
-                return;
-            }
-            log.debug("Next is {} running in {}", next.getEntity().getId(),
-                next.getUpdateAt() - System.currentTimeMillis());
-            log.debug("nextRun = {}, System.currentTimeMillis() = {}, nextRunId = {}", nextRun,
-                System.currentTimeMillis(), nextRunId);
-            if (next.getUpdateAt() - System.currentTimeMillis() < -5000) {
-                // Failsafe to hopefully prevent shit getting stuck. This should trigger if we're 5 seconds behind
-                log.error("!! Render failsafe has been activated  nextRun = {}, nextRunId = {} !!",
-                    nextRun, nextRunId);
-                adminLoggerService.log(String.format(
-                    ":warning: Render failsafe has been triggered. nextRun = %d, nextRunId = %d, current time = %d",
-                    nextRun, nextRunId, System.currentTimeMillis()));
-                nextRun = 0;
-                nextRunId = 0;
-            }
-            if (next.updateAt < nextRun || nextRun == 0L) {
-                if (nextRunId == next.getEntity().getId()) {
-                    // We're rescheduling the same thing
-                    log.debug("Not rescheduling");
-                    return;
-                }
-                synchronized (futureLock) {
-                    if (future != null) {
-                        log.debug("Aborting scheduled render");
-                        future.cancel(false);
-                    }
-                    long diff = next.updateAt - System.currentTimeMillis();
-                    log.debug("Scheduling render: {} caused by {}", Time.format(1, diff),
-                        next.getEntity().getId());
-                    Instant nextRunTime = Instant.now().plusMillis(diff + 500);
-                    future = taskScheduler.schedule(this::onUpdate, nextRunTime);
-                    nextRun = nextRunTime.toEpochMilli();
-                    nextRunId = next.getEntity().getId();
-                }
-            } else {
-                log.debug(
-                    "Not rescheduling render. nextRun = {}, System.currentTimeMillis() = {}, nextRunId = {}",
-                    nextRun, System.currentTimeMillis(), nextRunId);
-            }
-        }
-
-        @Data
-        @AllArgsConstructor
-        private class QueuedRender {
-
-            private long updateAt;
-            private GiveawayEntity entity;
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(entity);
-            }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) {
-                    return true;
-                }
-                if (o == null || getClass() != o.getClass()) {
-                    return false;
-                }
-                QueuedRender that = (QueuedRender) o;
-                return entity.getId() == that.entity.getId();
-            }
-        }
-    }
 }
