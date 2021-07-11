@@ -30,4 +30,11 @@ public interface GiveawayRepository extends CrudRepository<GiveawayEntity, Long>
 
     @Query("SELECT e FROM GiveawayEntity e WHERE e.guildId = (:guild) AND e.channelId IN (:channels) AND e.state = com.mrkirby153.snowsgivingbot.entity.GiveawayState.ENDED AND e.endsAt > (:after) ORDER BY e.endsAt DESC")
     List<GiveawayEntity> getExpiredGiveaways(String guild, List<String> channels, Timestamp after);
+
+    void getAllByVersion(long version);
+
+    void getAllByVersionAndState(long version, GiveawayState state);
+
+    @Query("SELECT e from GiveawayEntity e WHERE e.version < com.mrkirby153.snowsgivingbot.services.impl.GiveawayMigrationManager.LATEST_GIVEAWAY_VERSION")
+    List<GiveawayEntity> getAllGiveawaysNeedingMigration();
 }

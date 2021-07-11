@@ -4,8 +4,6 @@ import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayState;
 import com.mrkirby153.snowsgivingbot.services.setting.SettingService;
 import com.mrkirby153.snowsgivingbot.services.setting.Settings;
-import me.mrkirby153.kcutils.Time;
-import me.mrkirby153.kcutils.Time.TimeUnit;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Message;
@@ -30,17 +28,15 @@ public class GiveawayEmbedUtils {
         StringBuilder descBuilder = new StringBuilder();
         switch (entity.getState()) {
             case RUNNING:
-                long timeLeftMs = entity.getEndsAt().getTime() - System.currentTimeMillis();
-                String time = Time.formatLong(timeLeftMs, TimeUnit.SECONDS);
                 eb.setColor(Color.GREEN);
                 if (settingService.get(Settings.USE_BUTTONS, entity.getGuildId())) {
                     descBuilder.append("Click the buttons below to enter!");
                 } else {
                     descBuilder.append("Click the reaction below to enter!");
                 }
-                descBuilder.append("\n\nTime Left: **");
-                descBuilder.append(timeLeftMs < 1000 ? "< 1 Second" : time);
-                descBuilder.append("**");
+                descBuilder.append("\n\nEnds ");
+                long endsAt = entity.getEndsAt().getTime() / 1000;
+                descBuilder.append(String.format("<t:%d:R>", endsAt));
                 if (entity.getHost() != null) {
                     descBuilder.append("\nHost: <@!").append(entity.getHost()).append(">");
                 }

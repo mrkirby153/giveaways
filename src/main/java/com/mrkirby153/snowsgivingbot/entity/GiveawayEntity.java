@@ -1,5 +1,6 @@
 package com.mrkirby153.snowsgivingbot.entity;
 
+import com.mrkirby153.snowsgivingbot.services.impl.GiveawayMigrationManager;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -74,6 +75,8 @@ public class GiveawayEntity {
 
     @Column(name = "final_winners")
     private String finalWinners;
+
+    private long version = GiveawayMigrationManager.LATEST_GIVEAWAY_VERSION;
 
     public String[] getFinalWinners() {
         if(finalWinners == null || finalWinners.isEmpty())

@@ -121,6 +121,13 @@ public interface GiveawayService {
      */
     void update(GiveawayEntity entity);
 
+    /**
+     * Renders a giveaway's embed
+     *
+     * @param entity The giveaway to render
+     */
+    void renderGiveaway(GiveawayEntity entity);
+
     @Data
     @AllArgsConstructor
     @NoArgsConstructor

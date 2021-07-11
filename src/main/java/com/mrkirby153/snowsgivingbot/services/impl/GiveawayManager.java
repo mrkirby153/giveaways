@@ -351,30 +351,18 @@ public class GiveawayManager implements GiveawayService {
             return;
         }
         endEndedGiveaways();
-        long count = counter.getAndIncrement();
-        Instant now = Instant.now();
-        if (count % 120 == 0) {
-            // Update giveaways ending in an hour every two minutes
-            updateGiveaways(new Timestamp(now.plusSeconds(60 * 60).toEpochMilli()));
-        } else if (count % 15 == 0) {
-            // Update giveaways ending in 5 minutes every 15 seconds
-            updateGiveaways(new Timestamp(now.plusSeconds(60 * 5).toEpochMilli()));
-        } else {
-            // Update giveaways ending in 5 seconds every second
-            updateGiveaways(new Timestamp(now.plusSeconds(5).toEpochMilli()));
-        }
     }
-
-    @Scheduled(fixedDelay = 120000L) // 2 minutes
-    public void updateAllGiveaways() {
-        if (!isReady) {
-            return;
-        }
-        log.debug("Updating all giveaways");
-        List<GiveawayEntity> activeGiveaways = giveawayRepository
-            .findAllByState(GiveawayState.RUNNING);
-        updateMultipleGiveaways(activeGiveaways, true);
-    }
+//
+//    @Scheduled(fixedDelay = 120000L) // 2 minutes
+//    public void updateAllGiveaways() {
+//        if (!isReady) {
+//            return;
+//        }
+//        log.debug("Updating all giveaways");
+//        List<GiveawayEntity> activeGiveaways = giveawayRepository
+//            .findAllByState(GiveawayState.RUNNING);
+//        updateMultipleGiveaways(activeGiveaways, true);
+//    }
 
     /**
      * Updates multiple giveaways at the same time
@@ -404,12 +392,8 @@ public class GiveawayManager implements GiveawayService {
         }
     }
 
-    /**
-     * Renders a giveaway's embed
-     *
-     * @param entity The giveaway to render
-     */
-    private void renderGiveaway(GiveawayEntity entity) {
+    @Override
+    public void renderGiveaway(GiveawayEntity entity) {
         log.debug("Updating {}", entity);
         TextChannel c = shardManager.getTextChannelById(entity.getChannelId());
         if (c != null) {
