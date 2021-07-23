@@ -9,6 +9,7 @@ import com.mrkirby153.botcore.command.args.CommandContext;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.services.DiscordService;
+import com.mrkirby153.snowsgivingbot.services.GiveawayMigrationService;
 import com.mrkirby153.snowsgivingbot.services.RabbitMQService;
 import com.mrkirby153.snowsgivingbot.services.StandaloneWorkerService;
 import com.mrkirby153.snowsgivingbot.services.backfill.BackfillTask;
@@ -42,6 +43,7 @@ public class AdminCommands {
     private final ShardManager shardManager;
     private final RedisTemplate<String, String> template;
     private final SettingService settingService;
+    private final GiveawayMigrationService migrationService;
 
     @Command(name = "ping", clearance = 100)
     public void ping(Context context, CommandContext cmdContext) {
@@ -243,5 +245,11 @@ public class AdminCommands {
         context.getChannel().sendMessage(
             "**" + guild.getName() + "** is in the following alphas: " + alphas.stream().collect(
                 Collectors.joining(","))).queue();
+    }
+
+    @Command(name = "migrate", clearance = 101)
+    public void doMigration(Context context, CommandContext commandContext) {
+        migrationService.migrateAll();
+        context.getChannel().sendMessage("Migrating all giveaways to latest version").queue();
     }
 }

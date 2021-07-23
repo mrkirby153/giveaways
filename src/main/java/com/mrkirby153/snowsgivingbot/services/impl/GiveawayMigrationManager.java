@@ -2,14 +2,12 @@ package com.mrkirby153.snowsgivingbot.services.impl;
 
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
-import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import com.mrkirby153.snowsgivingbot.services.AdminLoggerService;
 import com.mrkirby153.snowsgivingbot.services.GiveawayMigrationService;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.mrkirby153.kcutils.Time;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
 
@@ -76,39 +74,29 @@ public class GiveawayMigrationManager implements GiveawayMigrationService {
             Time.format(1, System.currentTimeMillis() - start));
     }
 
-    /**
-     * Migrate all giveaways
-     */
+    @Override
     public void migrateAll() {
         List<GiveawayEntity> giveaways = giveawayRepository.getAllGiveawaysNeedingMigration();
+        log.info("Scheduling migration of {} giveaways", giveaways.size());
         if (giveaways.size() < 1) {
             return;
         }
         // Bucket our migrations to not ratelimit ourselves
         Map<Long, List<GiveawayEntity>> buckets = new HashMap<>();
-        log.info("Scheduling migration of {} giveaways", giveaways.size());
         giveaways.forEach(g -> {
-            long bucket = g.getId() % 120;
+            long bucket = g.getId() % 300;
             List<GiveawayEntity> bucketContents = buckets
                 .computeIfAbsent(bucket, b -> new ArrayList<>());
             bucketContents.add(g);
         });
         StringBuilder adminLogBuckets = new StringBuilder("Scheduling migration of ");
         adminLogBuckets.append(giveaways.size()).append(" giveaways: ");
-        log.debug("Migration buckets: ");
-        buckets.forEach((b, c) -> {
-            log.debug("  - {}: {}", b, c.size());
-            adminLogBuckets.append(b).append(":").append(c.size()).append(" ");
-        });
-        adminLoggerService.log(adminLogBuckets.toString());
+        buckets
+            .forEach((b, c) -> adminLogBuckets.append(b).append(":").append(c.size()).append(" "));
+        log.info(adminLogBuckets.toString());
         buckets.forEach((bucket, bucketContents) -> taskScheduler
             .schedule(() -> bucketContents.forEach(this::doMigration),
                 Instant.now().plusSeconds(bucket)));
         log.info("All giveaways have been scheduled");
-    }
-
-    @EventListener
-    public void onReady(AllShardsReadyEvent event) {
-        this.migrateAll();
     }
 }

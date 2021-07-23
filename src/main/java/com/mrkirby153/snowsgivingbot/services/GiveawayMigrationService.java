@@ -22,4 +22,9 @@ public interface GiveawayMigrationService {
      * @param entity The entity to migrate
      */
     void doMigration(GiveawayEntity entity);
+
+    /**
+     * Migrate all giveaways
+     */
+    void migrateAll();
 }
