@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.dv8tion.jda.api.entities.Guild;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -73,15 +72,13 @@ public class SettingManager implements SettingService {
     }
 
     @Override
-    @Cacheable(cacheNames = "settings", key = "#p0.getKey()+'-'+#p1.getId()")
     public <T> T get(GuildSetting<T> setting, Guild guild) {
         return get(setting, guild.getId());
     }
 
     @Override
-    @Cacheable(cacheNames = "settings", key = "#p0.getKey()+'-'+#p1")
     public <T> T get(GuildSetting<T> setting, String guildId) {
-        log.debug("Retrieving {} on {} from the db", setting.getKey(), guildId);
+        log.debug("Retrieving {} on {}", setting.getKey(), guildId);
         Optional<T> existing = settingsRepository.getByGuildAndKey(guildId, setting.getKey())
             .map(e -> setting.deserialize(e.getValue()));
         return existing.orElse(setting.getDefaultSetting());
