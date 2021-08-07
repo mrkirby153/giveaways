@@ -26,6 +26,7 @@ import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Emote;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.Message.MentionType;
 import net.dv8tion.jda.api.entities.MessageReaction.ReactionEmote;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.entities.User;
@@ -68,6 +69,9 @@ import javax.transaction.Transactional;
 public class GiveawayManager implements GiveawayService {
 
     private static final String TADA = "\uD83C\uDF89";
+
+    private static final List<MentionType> END_MESSAGE_ALLOWED_MENTIONS = Arrays.asList(
+        MentionType.USER, MentionType.CHANNEL, MentionType.EMOTE);
 
     private final ShardManager shardManager;
     private final EntrantRepository entrantRepository;
@@ -168,7 +172,7 @@ public class GiveawayManager implements GiveawayService {
         GiveawayEntity finalEntity = entity;
         channel.sendMessage(GiveawayEmbedUtils.renderMessage(entity, settingService)).queue(m -> {
             finalEntity.setMessageId(m.getId());
-            if(!settingService.get(Settings.USE_BUTTONS, channel.getGuild())) {
+            if (!settingService.get(Settings.USE_BUTTONS, channel.getGuild())) {
                 addGiveawayEmote(m);
             }
             GiveawayEntity save = giveawayRepository.save(finalEntity);
@@ -262,7 +266,9 @@ public class GiveawayManager implements GiveawayService {
         // updates
         ge.setFinalWinners(newWinners.toArray(new String[0]));
         List<String> messages = generateEndMessage(ge, true);
-        messages.forEach(m -> chan.sendMessage(m).queue());
+        messages.forEach(
+            m -> chan.sendMessage(m).allowedMentions(END_MESSAGE_ALLOWED_MENTIONS)
+                .mentionUsers(newWinners.toArray(new String[0])).queue());
         ge.setFinalWinners(allWinners.toArray(new String[0]));
         ge = giveawayRepository.save(ge);
         renderGiveaway(ge);
@@ -321,14 +327,6 @@ public class GiveawayManager implements GiveawayService {
         });
     }
 
-    @Scheduled(fixedDelay = 1000L) // 1 Second
-    public void updateGiveaways() {
-        if (!isReady) {
-            return;
-        }
-        endEndedGiveaways();
-    }
-
     @Override
     public void renderGiveaway(GiveawayEntity entity) {
         log.debug("Updating {}", entity);
@@ -342,6 +340,14 @@ public class GiveawayManager implements GiveawayService {
                 });
             }
         }
+    }
+
+    @Scheduled(fixedDelay = 1000L) // 1 Second
+    public void updateGiveaways() {
+        if (!isReady) {
+            return;
+        }
+        endEndedGiveaways();
     }
 
     /**
@@ -521,7 +527,9 @@ public class GiveawayManager implements GiveawayService {
                         includeLink = false;
                     }
                     generateEndMessage(giveaway, includeLink)
-                        .forEach(msg -> channel.sendMessage(msg).queue());
+                        .forEach(msg -> channel.sendMessage(msg)
+                            .allowedMentions(END_MESSAGE_ALLOWED_MENTIONS)
+                            .mentionUsers(winners.toArray(new String[0])).queue());
                     giveaway.setState(GiveawayState.ENDED);
                     renderGiveaway(giveaway);
                 }
@@ -621,7 +629,8 @@ public class GiveawayManager implements GiveawayService {
             if (entered) {
                 event.reply("You are entered into " + ge.getName()).setEphemeral(true).queue();
             } else {
-                event.reply("You are **not** entered into " + ge.getName()).setEphemeral(true).queue();
+                event.reply("You are **not** entered into " + ge.getName()).setEphemeral(true)
+                    .queue();
             }
         }
     }
