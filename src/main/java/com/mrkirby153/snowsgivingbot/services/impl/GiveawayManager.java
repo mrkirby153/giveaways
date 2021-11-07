@@ -9,7 +9,6 @@ import com.mrkirby153.snowsgivingbot.event.AllShardsReadyEvent;
 import com.mrkirby153.snowsgivingbot.event.GiveawayEndedEvent;
 import com.mrkirby153.snowsgivingbot.event.GiveawayEnterEvent;
 import com.mrkirby153.snowsgivingbot.event.GiveawayStartedEvent;
-import com.mrkirby153.snowsgivingbot.services.AdminLoggerService;
 import com.mrkirby153.snowsgivingbot.services.DiscordService;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService;
 import com.mrkirby153.snowsgivingbot.services.RabbitMQService;
@@ -41,7 +40,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.task.TaskExecutor;
-import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -50,7 +48,6 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -81,11 +78,8 @@ public class GiveawayManager implements GiveawayService {
     private final RabbitMQService rabbitMQService;
     private final ApplicationEventPublisher publisher;
     private final TaskExecutor taskExecutor;
-    private final TaskScheduler taskScheduler;
     private final GiveawayBackfillService backfillService;
     private final SettingService settingService;
-    private final AdminLoggerService adminLoggerService;
-    private final MeterRegistry meterRegistry;
 
     private final Map<String, GiveawayEntity> entityCache = new HashMap<>();
 
@@ -106,14 +100,10 @@ public class GiveawayManager implements GiveawayService {
     private boolean isReady = false;
 
     public GiveawayManager(ShardManager shardManager, EntrantRepository entrantRepository,
-        GiveawayRepository giveawayRepository,
-        DiscordService discordService,
-        @Value("${bot.reaction:" + TADA + "}") String emote,
-        ApplicationEventPublisher aep,
+        GiveawayRepository giveawayRepository, DiscordService discordService,
+        @Value("${bot.reaction:" + TADA + "}") String emote, ApplicationEventPublisher aep,
         TaskExecutor taskExecutor, StandaloneWorkerService sws, RabbitMQService rabbitMQService,
-        TaskScheduler taskScheduler,
-        @Lazy GiveawayBackfillService backfillService,
-        SettingService settingService, AdminLoggerService adminLoggerService,
+        @Lazy GiveawayBackfillService backfillService, SettingService settingService,
         MeterRegistry meterRegistry) {
         this.shardManager = shardManager;
         this.entrantRepository = entrantRepository;
@@ -123,11 +113,8 @@ public class GiveawayManager implements GiveawayService {
         this.taskExecutor = taskExecutor;
         this.sws = sws;
         this.rabbitMQService = rabbitMQService;
-        this.taskScheduler = taskScheduler;
         this.backfillService = backfillService;
         this.settingService = settingService;
-        this.adminLoggerService = adminLoggerService;
-        this.meterRegistry = meterRegistry;
 
         giveawayEntrantsCounter = meterRegistry.counter("giveaway_entrants");
         giveawaysStartedCounter = meterRegistry.counter("giveaway_started");
@@ -153,12 +140,10 @@ public class GiveawayManager implements GiveawayService {
         entity.setName(name);
         entity.setWinners(winners);
         Timestamp endsAt = new Timestamp(System.currentTimeMillis() + Time.parse(endsIn));
-        // 2038 problem workaround
-        Calendar cal = Calendar.getInstance();
-        cal.setTimeInMillis(endsAt.getTime());
-        if (cal.get(Calendar.YEAR) >= 2038) {
+        // 2038 problem go brrrr. Thanks, MySQL
+        if (endsAt.getTime() / 1000 > Integer.MAX_VALUE) {
             throw new IllegalArgumentException(
-                "Can't start a giveaway that ends that far in the future!");
+                "Can't start a giveaway that ends that for in the future!");
         }
 
         entity.setEndsAt(endsAt);
@@ -185,15 +170,25 @@ public class GiveawayManager implements GiveawayService {
 
     @Override
     public void deleteGiveaway(String messageId) {
+        deleteGiveaway(messageId, true);
+    }
+
+    @Override
+    public void deleteGiveaway(String messageId, boolean deleteMessage) {
         GiveawayEntity entity = giveawayRepository.findByMessageId(messageId)
             .orElseThrow(() -> new IllegalArgumentException("Giveaway not found"));
-        deleteGiveaway(entity);
+        deleteGiveaway(entity, deleteMessage);
     }
 
     @Override
     public void deleteGiveaway(GiveawayEntity entity) {
+        deleteGiveaway(entity, true);
+    }
+
+    @Override
+    public void deleteGiveaway(GiveawayEntity entity, boolean deleteMessage) {
         TextChannel c = shardManager.getTextChannelById(entity.getChannelId());
-        if (c != null) {
+        if (c != null && deleteMessage) {
             c.deleteMessageById(entity.getMessageId()).queue();
         }
         publisher.publishEvent(new GiveawayEndedEvent(entity));
@@ -264,8 +259,7 @@ public class GiveawayManager implements GiveawayService {
         // This is a total hack. Set the final winners of the giveaway, render the end message so
         // it only shows the new winners, then set the final winners of the giveaway so the embed
         // updates
-        ge.setFinalWinners(newWinners.toArray(new String[0]));
-        List<String> messages = generateEndMessage(ge, true);
+        List<String> messages = generateEndMessage(ge, newWinners, true);
         messages.forEach(
             m -> chan.sendMessage(m).allowedMentions(END_MESSAGE_ALLOWED_MENTIONS)
                 .mentionUsers(newWinners.toArray(new String[0])).queue());
@@ -422,23 +416,25 @@ public class GiveawayManager implements GiveawayService {
      * Generates a series of messages used for the giveaway ending
      *
      * @param entity         The entity to generate the giveaways from
+     * @param winners        The list of winner IDs to generate mentions for
      * @param includeMsgLink If a message link should be included
      *
      * @return A list of messages that should be sent to announce the end of the giveaway
      */
-    private List<String> generateEndMessage(GiveawayEntity entity, boolean includeMsgLink) {
+    private List<String> generateEndMessage(GiveawayEntity entity, List<String> winners,
+        boolean includeMsgLink) {
         String msgLink = String
             .format("<https://discordapp.com/channels/%s/%s/%s>", entity.getGuildId(),
                 entity.getChannelId(), entity.getMessageId());
-        List<String> winnerMentions = Arrays.stream(entity.getFinalWinners())
-            .map(id -> String.format("<@!%s>", id)).collect(
-                Collectors.toList());
 
-        if (entity.getFinalWinners().length == 0) {
+        if (winners.size() == 0) {
             return Collections.singletonList(
                 "\uD83D\uDEA8 Could not determine a winner! \uD83D\uDEA8" + (includeMsgLink ? "\n"
                     + msgLink : ""));
         }
+
+        List<String> winnerMentions = winners.stream()
+            .map(id -> String.format("<@!%s>", id)).collect(Collectors.toList());
 
         String winMessage = String
             .format(":tada: Congratulations %s, you won **%s**", String.join(" ", winnerMentions),
@@ -517,16 +513,14 @@ public class GiveawayManager implements GiveawayService {
                                 giveaway.getName())).queue();
                         return;
                     }
-                    boolean includeLink = true;
-                    if (channel.hasLatestMessage() && channel.getLatestMessageId()
-                        .equals(giveaway.getMessageId())) {
-                        includeLink = false;
-                    }
+                    boolean includeLink =
+                        !channel.hasLatestMessage() || !channel.getLatestMessageId()
+                            .equals(giveaway.getMessageId());
                     // Force disable jump links if they're disabled in a guild setting
                     if (!settingService.get(Settings.DISPLAY_JUMP_LINKS, channel.getGuild())) {
                         includeLink = false;
                     }
-                    generateEndMessage(giveaway, includeLink)
+                    generateEndMessage(giveaway, winners, includeLink)
                         .forEach(msg -> channel.sendMessage(msg)
                             .allowedMentions(END_MESSAGE_ALLOWED_MENTIONS)
                             .mentionUsers(winners.toArray(new String[0])).queue());
@@ -640,7 +634,7 @@ public class GiveawayManager implements GiveawayService {
     @Transactional
     public void onMessageDelete(MessageDeleteEvent event) {
         try {
-            deleteGiveaway(event.getMessageId());
+            deleteGiveaway(event.getMessageId(), false);
         } catch (IllegalArgumentException e) {
             // Ignore
         }

@@ -6,7 +6,6 @@ import com.mrkirby153.botcore.command.slashcommand.SlashCommandParameter;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayRoleEntity;
 import com.mrkirby153.snowsgivingbot.entity.GiveawayState;
-import com.mrkirby153.snowsgivingbot.entity.repo.EntrantRepository;
 import com.mrkirby153.snowsgivingbot.entity.repo.GiveawayRepository;
 import com.mrkirby153.snowsgivingbot.services.ConfirmationService;
 import com.mrkirby153.snowsgivingbot.services.GiveawayService;
@@ -18,7 +17,6 @@ import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
-import net.dv8tion.jda.api.sharding.ShardManager;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
@@ -34,11 +32,9 @@ import javax.annotation.Nullable;
 public class GiveawaySlashCommands {
 
     private final GiveawayService giveawayService;
-    private final EntrantRepository er;
     private final GiveawayRepository gr;
     private final PermissionService ps;
     private final ConfirmationService confirmationService;
-    private final ShardManager shardManager;
 
     @SlashCommand(name = "start", description = "Starts a new giveaway", clearance = 100)
     public void start(SlashCommandEvent event,
@@ -46,19 +42,27 @@ public class GiveawaySlashCommands {
         @SlashCommandParameter(name = "prize", description = "The prize to give away") String prize,
         @SlashCommandParameter(name = "winners", description = "The amount of winners (default 1)") @Nullable Integer winners,
         @SlashCommandParameter(name = "channel", description = "The channel to run the giveaway in (defaults to the current channel)")
-            @Nullable TextChannel textChannel,
+        @Nullable TextChannel textChannel,
         @SlashCommandParameter(name = "host", description = "The host of the giveaway (defaults to you)")
-            @Nullable User host) {
+        @Nullable User host) {
+        if (!event.isFromGuild()) {
+            throw new CommandException("Giveaways can only be started in guilds");
+        }
         if (winners == null) {
             winners = 1;
         }
         if (textChannel == null) {
-            textChannel = event.getTextChannel();
+            // Yes this @Nonnull method can return null (i.e. in a thread) thanks Java....
+            if (event.getChannel() != null) {
+                textChannel = event.getTextChannel();
+            } else {
+                throw new CommandException("Cannot start a giveaway in this channel!");
+            }
         }
         if (host == null) {
             host = event.getUser();
         }
-        if (!event.getGuild().getSelfMember()
+        if (event.getGuild() != null && !event.getGuild().getSelfMember()
             .hasPermission(textChannel, Permission.MESSAGE_ADD_REACTION,
                 Permission.MESSAGE_EMBED_LINKS)) {
             throw new CommandException("I can't start a giveawy in " + textChannel.getAsMention()
@@ -111,20 +115,20 @@ public class GiveawaySlashCommands {
                         hook.deleteOriginal().queue();
                         return confirmationService.confirm(msg, event.getUser());
                     }).handle((result, throwable) -> {
-                    if (throwable != null) {
-                        event.getChannel()
-                            .sendMessage("An error occurred: " + throwable.getMessage())
-                            .queue();
+                        if (throwable != null) {
+                            event.getChannel()
+                                .sendMessage("An error occurred: " + throwable.getMessage())
+                                .queue();
+                            return null;
+                        }
+                        if (result) {
+                            event.getChannel().sendMessage("Rerolling giveaway...").queue();
+                            giveawayService.reroll(entity.getMessageId(), finalUsers);
+                        } else {
+                            event.getChannel().sendMessage("Canceled").queue();
+                        }
                         return null;
-                    }
-                    if (result) {
-                        event.getChannel().sendMessage("Rerolling giveaway...").queue();
-                        giveawayService.reroll(entity.getMessageId(), finalUsers);
-                    } else {
-                        event.getChannel().sendMessage("Canceled").queue();
-                    }
-                    return null;
-                });
+                    });
             } catch (IllegalArgumentException | IllegalStateException e) {
                 hook.editOriginal(":no_entry: " + e.getMessage()).queue();
             }

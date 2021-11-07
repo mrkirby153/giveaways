@@ -38,11 +38,27 @@ public interface GiveawayService {
     void deleteGiveaway(String messageId);
 
     /**
+     * Deletes a giveaway by its message id
+     *
+     * @param messageId     The message id
+     * @param deleteMessage If the message should be deleted from the channel
+     */
+    void deleteGiveaway(String messageId, boolean deleteMessage);
+
+    /**
      * Deletes a giveaway
      *
      * @param entity The giveaway entity to delete
      */
     void deleteGiveaway(GiveawayEntity entity);
+
+    /**
+     * Deletes a giveaway
+     *
+     * @param entity        The giveaway entity to delete
+     * @param deleteMessage If the message should be deleted from the channel
+     */
+    void deleteGiveaway(GiveawayEntity entity, boolean deleteMessage);
 
     /**
      * Picks winners for the provided giveaway

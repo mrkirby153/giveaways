@@ -1,5 +1,5 @@
 import {Client, IFrame} from '@stomp/stompjs';
-import {useContext, useEffect, useRef} from 'react';
+import {useContext, useDebugValue, useEffect, useRef} from 'react';
 import {WebsocketInformationContext} from "./App";
 import {Nullable, WebsocketMessage, WebsocketSubscription} from "./types";
 import {JWT_KEY} from "./constants";
@@ -120,6 +120,7 @@ export function useWebsocket() {
 }
 
 export function useWebsocketTopic(topic: string, callback: (message: IFrame) => any, effects: any[] = [], enabled: boolean = true) {
+  useDebugValue(topic)
   let {subscribe, unsubscribe} = useWebsocket();
   let subId = useRef(-1);
   useEffect(() => {
