@@ -1,8 +1,8 @@
 plugins {
-    id 'org.springframework.boot' version '2.2.0.RELEASE'
+    id 'org.springframework.boot' version '2.7.0'
     id 'io.spring.dependency-management' version '1.0.8.RELEASE'
     id 'java'
-    id "org.flywaydb.flyway" version "6.0.6"
+    id "org.flywaydb.flyway" version "8.5.11"
     id "io.freefair.lombok" version "5.0.1"
 }
 
@@ -43,12 +43,13 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
 
     implementation 'org.springframework.data:spring-data-redis'
-    implementation 'redis.clients:jedis:3.3.0'
+    implementation 'redis.clients:jedis'
 
     implementation 'org.springframework:spring-websocket'
     implementation 'org.springframework:spring-messaging'
 
     implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-mysql'
     compileOnly 'org.projectlombok:lombok'
     runtimeOnly 'com.h2database:h2'
     runtimeOnly 'mysql:mysql-connector-java'
@@ -67,10 +68,10 @@ dependencies {
 
     implementation 'io.micrometer:micrometer-registry-prometheus'
 
-    testCompile 'org.junit.jupiter:junit-jupiter-api:5.5.2'
-    testCompile 'org.junit.jupiter:junit-jupiter-engine:5.5.2'
-    testCompile 'org.mockito:mockito-core:3.1.0'
-    testCompile 'org.awaitility:awaitility:4.0.1'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.5.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.5.2'
+    testImplementation 'org.mockito:mockito-core:3.1.0'
+    testImplementation 'org.awaitility:awaitility:4.0.1'
 }
 
 test {
