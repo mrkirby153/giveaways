@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.util.Properties
 
 plugins {
     id("org.springframework.boot") version "2.7.1"
@@ -6,6 +7,8 @@ plugins {
     kotlin("jvm") version "1.6.21"
     kotlin("plugin.spring") version "1.6.21"
     kotlin("plugin.jpa") version "1.6.21"
+
+    id("org.flywaydb.flyway") version "8.3.0"
 }
 
 group = "com.mrkirby153"
@@ -13,18 +16,40 @@ version = "2.0.0-SNAPSHOT"
 java.sourceCompatibility = JavaVersion.VERSION_17
 
 repositories {
+    mavenLocal()
     mavenCentral()
+    maven(url = "https://repo.mrkirby153.com/repository/maven-public/")
 }
 
+buildscript {
+    dependencies {
+        // Needed so flyway can pick up mysql
+        classpath("org.flywaydb:flyway-mysql:8.5.13")
+    }
+}
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-amqp")
     implementation("org.springframework.boot:spring-boot-starter-data-jdbc")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
+
+    implementation("org.flywaydb:flyway-mysql")
     implementation("org.flywaydb:flyway-core")
+
+    runtimeOnly("com.h2database:h2")
+    runtimeOnly("mysql:mysql-connector-java")
+
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+
+    implementation("com.mrkirby153:bot-core:4.1-SNAPSHOT")
+    implementation("com.mrkirby153:interaction-menus:1.0-SNAPSHOT")
+    implementation("net.dv8tion:JDA:5.0.0-alpha.13")
+
+    implementation("me.mrkirby153:KirbyUtils-Common:3.4-SNAPSHOT")
+
+
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.amqp:spring-rabbit-test")
 }
@@ -38,4 +63,37 @@ tasks.withType<KotlinCompile> {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+val defaultProps by lazy {
+    val embeddedPropFile = file("src/main/resources/application.properties")
+    if (embeddedPropFile.exists()) {
+        Properties().apply { load(embeddedPropFile.inputStream()) }
+    } else {
+        Properties()
+    }
+}
+
+val overriddenProps by lazy {
+    val propFile = file("config/application.properties")
+    if (propFile.exists()) {
+        Properties().apply { load(propFile.inputStream()) }
+    } else {
+        Properties()
+    }
+}
+
+inline fun <reified T> getProperty(key: String): T? {
+    val raw = overriddenProps[key] ?: defaultProps[key]
+    if (raw is T) {
+        return raw
+    } else {
+        throw IllegalArgumentException("Could not cast $key to desired type")
+    }
+}
+
+flyway {
+    url = getProperty("spring.datasource.url")
+    user = getProperty("spring.datasource.username")
+    password = getProperty("spring.datasource.password")
 }
