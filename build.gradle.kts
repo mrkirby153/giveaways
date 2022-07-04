@@ -50,7 +50,10 @@ dependencies {
     implementation("me.mrkirby153:KirbyUtils-Common:3.4-SNAPSHOT")
 
 
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-test") {
+        exclude(module = "mockito-core")
+        exclude(module = "mockito-junit-jupiter")
+    }
     testImplementation("org.springframework.amqp:spring-rabbit-test")
 }
 
