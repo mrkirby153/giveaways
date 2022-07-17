@@ -65,7 +65,7 @@ public class GiveawaySlashCommands {
         if (event.getGuild() != null && !event.getGuild().getSelfMember()
             .hasPermission(textChannel, Permission.MESSAGE_ADD_REACTION,
                 Permission.MESSAGE_EMBED_LINKS)) {
-            throw new CommandException("I can't start a giveawy in " + textChannel.getAsMention()
+            throw new CommandException("I can't start a giveaway in " + textChannel.getAsMention()
                 + " due to missing permissions. Ensure that I have permissions to add reactions and embed links!");
         }
         try {
