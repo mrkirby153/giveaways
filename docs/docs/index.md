@@ -10,7 +10,7 @@ Once a user has voted, they will be given a special `Voted` role, which by defau
 
 ## Adding The Bot
 
-You can invite the bot to your server by clicking [this](https://discordapp.com/api/oauth2/authorize?client_id=488844479868960791&permissions=268766288&scope=bot) link.
+You can invite the bot to your server by clicking [this](https://discord.com/api/oauth2/authorize?client_id=488844479868960791&permissions=268766288&scope=bot) link.
 
 **Note:** The bot is private, the link above is purely for reference.
 

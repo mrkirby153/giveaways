@@ -424,7 +424,7 @@ public class GiveawayManager implements GiveawayService {
     private List<String> generateEndMessage(GiveawayEntity entity, List<String> winners,
         boolean includeMsgLink) {
         String msgLink = String
-            .format("<https://discordapp.com/channels/%s/%s/%s>", entity.getGuildId(),
+            .format("<https://discord.com/channels/%s/%s/%s>", entity.getGuildId(),
                 entity.getChannelId(), entity.getMessageId());
 
         if (winners.size() == 0) {
