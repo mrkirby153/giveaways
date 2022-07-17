@@ -121,7 +121,7 @@ public class GiveawayManager implements GiveawayService {
         giveawaysEndedCounter = meterRegistry.counter("giveaway_ended");
         runningGiveawayGauge = meterRegistry.gauge("running_giveaways", new AtomicLong(0));
 
-        if (emote.matches("\\d{17,18}")) {
+        if (emote.matches("\\d{17,19}")) {
             emoji = null;
             custom = true;
             emoteId = emote;

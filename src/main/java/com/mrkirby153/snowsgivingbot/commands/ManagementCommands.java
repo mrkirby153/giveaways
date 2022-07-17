@@ -74,7 +74,7 @@ public class ManagementCommands {
                 if (display != null) {
                     emoteStr = display.getEmote();
                 }
-                if (emoteStr.matches("\\d{17,18}")) {
+                if (emoteStr.matches("\\d{17,19}")) {
                     Emote jdaEmote = shardManager.getEmoteById(emoteStr);
                     if (jdaEmote == null) {
                         return "_Emote not found_";
@@ -85,7 +85,7 @@ public class ManagementCommands {
                     return emoteStr;
                 }
             }, (value) -> {
-                Pattern pattern = Pattern.compile("\\d{17,18}");
+                Pattern pattern = Pattern.compile("\\d{17,19}");
                 Matcher m = pattern.matcher(value);
                 ConfiguredGiveawayEmote emote;
                 Emote e;

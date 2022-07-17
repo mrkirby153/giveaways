@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
 @AllArgsConstructor
 public class GiveawayController {
 
-    private static final Pattern snowflakePattern = Pattern.compile("\\d{17,18}");
+    private static final Pattern snowflakePattern = Pattern.compile("\\d{17,19}");
     private final WebGiveawayService giveawayService;
     private final ShardManager shardManager;
     private final LoadingCache<String, ServerDto> dtoCache = CacheBuilder.newBuilder()

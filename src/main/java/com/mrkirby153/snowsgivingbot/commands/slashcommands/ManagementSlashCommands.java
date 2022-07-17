@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
 @Slf4j
 public class ManagementSlashCommands {
 
-    public static final Pattern EMOTE_PATTERN = Pattern.compile("\\d{17,18}");
+    public static final Pattern EMOTE_PATTERN = Pattern.compile("\\d{17,19}");
     private static final String TADA = "\uD83C\uDF89";
     private static final Function<String, Boolean> BOOLEAN_PARSER = (input) -> {
         String lower = input.toLowerCase();
@@ -61,7 +61,7 @@ public class ManagementSlashCommands {
                 if (obj != null) {
                     toDisplay = cge.getEmote();
                 }
-                if (toDisplay.matches("\\d{17,18}")) {
+                if (toDisplay.matches("\\d{17,19}")) {
                     Emote jdaEmote = shardManager.getEmoteById(toDisplay);
                     if (jdaEmote == null) {
                         return "__Emote Not Found__";

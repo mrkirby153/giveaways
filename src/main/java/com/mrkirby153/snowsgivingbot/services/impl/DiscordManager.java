@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 public class DiscordManager implements DiscordService {
 
     private static final Pattern jumpLinkMatcher = Pattern.compile(
-        "https?://(canary\\.|ptb\\.)?discord.com/channels/(\\d{17,18})/(\\d{17,18})/(\\d{17,18})");
+        "https?://(canary\\.|ptb\\.)?discord.com/channels/(\\d{17,19})/(\\d{17,19})/(\\d{17,19})");
     private static final HashMap<String, String> messageChannelCache = new HashMap<>();
 
     private static final String PLAYING_STATUS = "giveaways.mrkirby153.com • %help";
