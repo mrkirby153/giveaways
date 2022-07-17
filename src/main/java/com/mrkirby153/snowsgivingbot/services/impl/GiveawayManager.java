@@ -121,7 +121,7 @@ public class GiveawayManager implements GiveawayService {
         giveawaysEndedCounter = meterRegistry.counter("giveaway_ended");
         runningGiveawayGauge = meterRegistry.gauge("running_giveaways", new AtomicLong(0));
 
-        if (emote.matches("\\d{17,18}")) {
+        if (emote.matches("\\d{17,19}")) {
             emoji = null;
             custom = true;
             emoteId = emote;
@@ -424,7 +424,7 @@ public class GiveawayManager implements GiveawayService {
     private List<String> generateEndMessage(GiveawayEntity entity, List<String> winners,
         boolean includeMsgLink) {
         String msgLink = String
-            .format("<https://discordapp.com/channels/%s/%s/%s>", entity.getGuildId(),
+            .format("<https://discord.com/channels/%s/%s/%s>", entity.getGuildId(),
                 entity.getChannelId(), entity.getMessageId());
 
         if (winners.size() == 0) {

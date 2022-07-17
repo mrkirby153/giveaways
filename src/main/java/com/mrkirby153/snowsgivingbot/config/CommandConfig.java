@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
 @Slf4j
 public class CommandConfig {
 
-    private static final Pattern ID_PATTERN = Pattern.compile("\\d{17,18}");
+    private static final Pattern ID_PATTERN = Pattern.compile("\\d{17,19}");
     private final PermissionService permissionManager;
     private final SettingService settingService;
     private String prefix;
