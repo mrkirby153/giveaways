@@ -2,6 +2,7 @@ package com.mrkirby153.giveaways.utils
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import org.springframework.util.ClassUtils
 import java.lang.reflect.Modifier
 
 fun <T : Any> unwrapCompanionClass(clazz: Class<T>): Class<*> {
@@ -19,4 +20,4 @@ fun <T : Any> unwrapCompanionClass(clazz: Class<T>): Class<*> {
 }
 
 inline val Any.log: Logger
-    get() = LoggerFactory.getLogger(unwrapCompanionClass(this::class.java))
+    get() = LoggerFactory.getLogger(unwrapCompanionClass(ClassUtils.getUserClass(this::class.java)))
