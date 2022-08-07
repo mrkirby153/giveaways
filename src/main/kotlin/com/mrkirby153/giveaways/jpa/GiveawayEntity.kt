@@ -3,6 +3,7 @@ package com.mrkirby153.giveaways.jpa
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import org.springframework.data.jpa.repository.JpaRepository
 import java.sql.Timestamp
+import java.util.UUID
 import javax.persistence.CascadeType
 import javax.persistence.Column
 import javax.persistence.Entity
@@ -28,18 +29,25 @@ class GiveawayEntity(
     var name: String,
     @Column(name = "guild_id")
     val guildId: String,
-    @Column(name = "channel_id")
+    @Column(name = "channel")
     val channelId: String,
-    @Column(name = "message_id")
+    @Column(name = "message")
     var messageId: String,
     var winners: Int,
+    @Column(name = "host")
+    var host: String?,
     var secret: Boolean = false,
-    val createdAt: Timestamp,
+    @Column(name = "created_at")
+    var createdAt: Timestamp? = null,
+    @Column(name = "ends_at")
     var endsAt: Timestamp,
+    @Column(name = "interaction_uuid")
+    var interactionUuid: String = UUID.randomUUID().toString(),
     @OneToMany(cascade = [CascadeType.ALL], mappedBy = "giveaway")
-    var entrants: MutableList<GiveawayEntrantEntity>,
+    var entrants: MutableList<GiveawayEntrantEntity> = mutableListOf(),
     @Enumerated(EnumType.ORDINAL)
     var state: GiveawayState = GiveawayState.RUNNING,
+    @Column(name = "final_winners")
     private var finalWinners: String? = null,
     var version: Long = 2,
 ) : AutoIncrementingJpaEntity<Long>() {
@@ -58,4 +66,6 @@ class GiveawayEntity(
 }
 
 interface GiveawayRepository : JpaRepository<GiveawayEntity, Long> {
+
+    fun getFirstByMessageId(id: String): GiveawayEntity?
 }
