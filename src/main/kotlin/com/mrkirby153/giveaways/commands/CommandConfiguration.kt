@@ -24,11 +24,9 @@ class CommandConfiguration(
     @Value("\${bot.commands.guilds:}")
     private val slashCommandGuilds: String,
     private val shardManager: ShardManager,
-    private val context: ApplicationContext
+    private val context: ApplicationContext,
+    private val slashCommandExecutor: DslCommandExecutor
 ) {
-
-    @Bean
-    fun slashCommandExecutor() = DslCommandExecutor().apply { shardManager.addEventListener(this) }
 
     @Bean("slashCommandProviders")
     fun slashCommandProviders() = slashCommands.map { context.getBean(it.java) }
@@ -39,16 +37,16 @@ class CommandConfiguration(
         log.info("Registering Slash Commands")
         slashCommandProviders().forEach {
             log.debug("Registering slash commands in ${it.javaClass}")
-            it.register(slashCommandExecutor())
+            it.register(slashCommandExecutor)
         }
         val guilds = slashCommandGuilds.split(",")
         if (guilds.isNotEmpty()) {
-            slashCommandExecutor().commit(shardManager.shards.first(), *guilds.toTypedArray())
+            slashCommandExecutor.commit(shardManager.shards.first(), *guilds.toTypedArray())
                 .thenRun {
                     log.info("Registered slash commands in $guilds")
                 }
         } else {
-            slashCommandExecutor().commit(shardManager.shards.first()).thenRun {
+            slashCommandExecutor.commit(shardManager.shards.first()).thenRun {
                 log.info("Registered slash commands globally")
             }
         }
