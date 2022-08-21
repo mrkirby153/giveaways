@@ -85,7 +85,7 @@ class GiveawayManager(
         )
         entity = giveawayRepository.save(entity)
         val msg = giveawayMessageService.render(entity)
-        return channel.sendMessage(msg).submit().thenApply {
+        return channel.sendMessage(msg.create()).submit().thenApply {
             entity.messageId = it.id
             val result = giveawayRepository.save(entity)
             eventPublisher.publishEvent(GiveawayStartedEvent(result))

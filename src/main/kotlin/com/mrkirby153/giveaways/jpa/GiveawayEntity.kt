@@ -2,6 +2,7 @@ package com.mrkirby153.giveaways.jpa
 
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Query
 import java.sql.Timestamp
 import java.util.UUID
 import javax.persistence.CascadeType
@@ -68,4 +69,7 @@ class GiveawayEntity(
 interface GiveawayRepository : JpaRepository<GiveawayEntity, Long> {
 
     fun getFirstByMessageId(id: String): GiveawayEntity?
+
+    @Query("SELECT e FROM GiveawayEntity e WHERE e.id = cast((:id) as long) OR e.messageId = (:id)")
+    fun getFirstByMessageIdOrSnowflake(id: String): GiveawayEntity?
 }

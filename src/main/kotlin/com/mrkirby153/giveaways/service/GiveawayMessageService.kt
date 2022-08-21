@@ -1,5 +1,6 @@
 package com.mrkirby153.giveaways.service
 
+import com.mrkirby153.botcore.builder.MessageBuilder
 import com.mrkirby153.botcore.builder.message
 import com.mrkirby153.giveaways.events.GiveawayEndingEvent
 import com.mrkirby153.giveaways.jpa.GiveawayEntity
@@ -11,13 +12,13 @@ import org.springframework.stereotype.Service
 import java.awt.Color
 
 interface GiveawayMessageService {
-    fun render(giveawayEntity: GiveawayEntity): Message
+    fun render(giveawayEntity: GiveawayEntity): MessageBuilder
 }
 
 @Service
 class GiveawayMessageManager : GiveawayMessageService {
 
-    override fun render(giveawayEntity: GiveawayEntity): Message {
+    override fun render(giveawayEntity: GiveawayEntity): MessageBuilder {
         return when (giveawayEntity.state) {
             GiveawayState.RUNNING -> renderRunning(giveawayEntity)
             GiveawayState.ENDED -> renderEnded(giveawayEntity)
@@ -30,7 +31,7 @@ class GiveawayMessageManager : GiveawayMessageService {
 
     }
 
-    private fun renderRunning(entity: GiveawayEntity): Message = message {
+    private fun renderRunning(entity: GiveawayEntity): MessageBuilder = message {
         embed {
             color {
                 color = Color.GREEN
@@ -50,7 +51,7 @@ class GiveawayMessageManager : GiveawayMessageService {
         }
     }
 
-    private fun renderEnded(entity: GiveawayEntity): Message = message {
+    private fun renderEnded(entity: GiveawayEntity): MessageBuilder = message {
         embed {
             color {
                 color = Color.RED
@@ -79,7 +80,7 @@ class GiveawayMessageManager : GiveawayMessageService {
         }
     }
 
-    private fun renderEnding(entity: GiveawayEntity): Message = message {
+    private fun renderEnding(entity: GiveawayEntity): MessageBuilder = message {
         embed {
             color {
                 color = Color.RED

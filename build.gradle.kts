@@ -43,9 +43,9 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
-    implementation("com.mrkirby153:bot-core:4.1-SNAPSHOT")
+    implementation("com.mrkirby153:bot-core:4.2-SNAPSHOT")
     implementation("com.mrkirby153:interaction-menus:1.0-SNAPSHOT")
-    implementation("net.dv8tion:JDA:5.0.0-alpha.15")
+    implementation("net.dv8tion:JDA:5.0.0-alpha.18")
 
     implementation("me.mrkirby153:KirbyUtils-Common:3.4-SNAPSHOT")
 
