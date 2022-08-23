@@ -64,6 +64,12 @@ class GiveawayEntity(
     fun setWinners(winners: Array<String>?) {
         finalWinners = winners?.joinToString(",")
     }
+
+    override fun toString(): String {
+        return "GiveawayEntity(id='$id', name='$name', guildId='$guildId', channelId='$channelId')"
+    }
+
+
 }
 
 interface GiveawayRepository : JpaRepository<GiveawayEntity, Long> {
