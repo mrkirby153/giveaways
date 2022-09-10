@@ -1,0 +1,20 @@
+version: "3"
+services:
+  database:
+    image: mariadb:10
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: password
+      MARIADB_DATABASE: giveaways
+    volumes:
+      - .data/db:/var/lib/mysql
+    ports:
+      - "33060:3306"
+  pma:
+    image: phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8083:80"
+    environment:
+      PMA_HOST: "database"
+      PMA_PORT: "3306"

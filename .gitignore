@@ -38,3 +38,5 @@ out/
 
 /config/
 .jpb/
+
+.data/
