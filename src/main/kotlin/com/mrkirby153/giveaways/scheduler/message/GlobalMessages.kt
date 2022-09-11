@@ -32,7 +32,7 @@ class GlobalMessageService(
     private val handlers = mutableMapOf<Long, GlobalMessageHandler<in Any>>()
 
     init {
-        register(CancelTask::class.java, HandleCancel::class.java)
+        register(CancelJob::class.java, HandleCancel::class.java)
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -101,4 +101,4 @@ class GlobalMessageService(
 data class GlobalMessageJson(val id: Long, val data: String)
 
 @Serializable
-data class CancelTask(val id: Long)
+data class CancelJob(val id: Long)

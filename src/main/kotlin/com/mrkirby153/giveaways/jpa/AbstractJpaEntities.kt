@@ -10,14 +10,14 @@ import javax.persistence.MappedSuperclass
 abstract class AutoIncrementingJpaEntity<T : Serializable> {
     @Id
     @GeneratedValue
-    open var id: T? = null
+    open lateinit var id: T
 
     override fun equals(other: Any?): Boolean {
         other ?: return false
         if (this === other) return true
         if (javaClass != ProxyUtils.getUserClass(other)) return false
         other as AutoIncrementingJpaEntity<*>
-        return if (null == this.id) false else this.id == other.id
+        return this.id == other.id
     }
 
     override fun hashCode(): Int {
