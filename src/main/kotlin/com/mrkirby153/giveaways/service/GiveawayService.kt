@@ -2,19 +2,12 @@ package com.mrkirby153.giveaways.service
 
 import com.mrkirby153.giveaways.events.GiveawayEndingEvent
 import com.mrkirby153.giveaways.events.GiveawayStartedEvent
-import com.mrkirby153.giveaways.jobs.GiveawayEndJob
 import com.mrkirby153.giveaways.jpa.GiveawayEntity
 import com.mrkirby153.giveaways.jpa.GiveawayRepository
 import com.mrkirby153.giveaways.jpa.GiveawayState
-import com.mrkirby153.giveaways.utils.log
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.entities.TextChannel
 import net.dv8tion.jda.api.entities.User
-import org.quartz.JobBuilder
-import org.quartz.JobKey
-import org.quartz.Scheduler
-import org.quartz.TriggerBuilder
-import org.quartz.TriggerKey
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Service
@@ -64,8 +57,7 @@ private val snowflakeRegex = Pattern.compile("\\d{17,20}")
 class GiveawayManager(
     private val giveawayRepository: GiveawayRepository,
     private val giveawayMessageService: GiveawayMessageService,
-    private val eventPublisher: ApplicationEventPublisher,
-    private val jobScheduler: Scheduler
+    private val eventPublisher: ApplicationEventPublisher
 ) : GiveawayService {
 
     override fun start(
@@ -128,24 +120,6 @@ class GiveawayManager(
     }
 
     private fun scheduleEndJob(giveaway: GiveawayEntity) {
-        val key = JobKey.jobKey("${giveaway.id}_end", "giveaways")
-        val triggerKey = TriggerKey.triggerKey("${giveaway.id}_end")
-        val existing = jobScheduler.getJobDetail(key)
-        if (existing != null) {
-            log.debug("Rescheduling giveaway ${giveaway.id}")
-            val trigger = jobScheduler.getTrigger(triggerKey).triggerBuilder
-            val newTrigger = trigger.startAt(giveaway.endsAt).build()
-            jobScheduler.rescheduleJob(triggerKey, newTrigger)
-        } else {
-            log.debug("Scheduling giveaway ${giveaway.id}")
-            val trigger =
-                TriggerBuilder.newTrigger().withIdentity(triggerKey).startAt(giveaway.endsAt)
-                    .build()
-            val job = JobBuilder.newJob(GiveawayEndJob::class.java).withIdentity(key).build()
-            val data = job.jobDataMap
-            data["id"] = giveaway.id.toString()
-            jobScheduler.scheduleJob(job, trigger)
-        }
     }
 
 

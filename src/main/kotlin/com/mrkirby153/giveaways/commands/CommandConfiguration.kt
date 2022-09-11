@@ -15,7 +15,8 @@ import kotlin.reflect.KClass
 
 
 private val slashCommands: List<KClass<out DslSlashCommandProvider>> = listOf(
-    GiveawayCommands::class
+    GiveawayCommands::class,
+    TestCommands::class
 )
 
 @Configuration

@@ -18,3 +18,8 @@ services:
     environment:
       PMA_HOST: "database"
       PMA_PORT: "3306"
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
