@@ -4,16 +4,29 @@ import com.mrkirby153.botcore.command.slashcommand.dsl.Arguments
 import com.mrkirby153.botcore.command.slashcommand.dsl.DslCommandExecutor
 import com.mrkirby153.botcore.command.slashcommand.dsl.slashCommand
 import com.mrkirby153.botcore.command.slashcommand.dsl.types.long
+import com.mrkirby153.botcore.command.slashcommand.dsl.types.string
 import com.mrkirby153.giveaways.jobs.TestJob
 import com.mrkirby153.giveaways.scheduler.JobScheduler
 import org.springframework.stereotype.Component
 import java.sql.Timestamp
 import java.time.Instant
 
-class Testing : Arguments() {
+class ScheduleArgs : Arguments() {
+    val name by string {
+        name = "name"
+        description = "The person to greet"
+    }.required()
+
+    val delay by duration {
+        name = "duration"
+        description = "The duration to greet"
+    }.required()
+}
+
+class CancelArgs : Arguments() {
     val id by long {
         name = "id"
-        description = "id"
+        description = "The id of the task to cancel"
     }.required()
 }
 
@@ -22,14 +35,24 @@ class TestCommands(
     private val jobScheduler: JobScheduler
 ) : DslSlashCommandProvider {
     override fun register(executor: DslCommandExecutor) {
-        executor.slashCommand<Testing> {
-            name = "testing"
-            description = "testing"
+        executor.slashCommand<ScheduleArgs> {
+            name = "schedule"
+            description = "scheduled a task"
             action {
                 val job = TestJob()
-                job.data = "jeff"
-                jobScheduler.schedule(job, Timestamp.from(Instant.now().plusSeconds(30)))
-                reply("Done!").setEphemeral(true).queue()
+                job.data = args.name
+                val id =
+                    jobScheduler.schedule(job, Timestamp.from(Instant.now().plusMillis(args.delay)))
+                reply("Scheduled task with id $id").setEphemeral(true).queue()
+            }
+        }
+
+        executor.slashCommand<CancelArgs> {
+            name = "cancel"
+            description = "cancels a task"
+            action {
+                jobScheduler.cancel(args.id)
+                reply("Canceled task").setEphemeral(true).queue()
             }
         }
     }

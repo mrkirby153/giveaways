@@ -10,7 +10,7 @@ import javax.persistence.MappedSuperclass
 abstract class AutoIncrementingJpaEntity<T : Serializable> {
     @Id
     @GeneratedValue
-    open lateinit var id: T
+    open var id: T? = null
 
     override fun equals(other: Any?): Boolean {
         other ?: return false
