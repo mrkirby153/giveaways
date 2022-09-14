@@ -3,6 +3,7 @@ package com.mrkirby153.giveaways.scheduler.message
 import com.mrkirby153.giveaways.config.BROADCAST_EXCHANGE
 import com.mrkirby153.giveaways.scheduler.message.handlers.GlobalMessageHandler
 import com.mrkirby153.giveaways.scheduler.message.handlers.HandleCancel
+import com.mrkirby153.giveaways.scheduler.message.handlers.HandleReschedule
 import com.mrkirby153.giveaways.utils.log
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
@@ -17,6 +18,7 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener
 import org.springframework.amqp.rabbit.core.RabbitTemplate
 import org.springframework.context.ApplicationContext
 import org.springframework.stereotype.Service
+import java.sql.Timestamp
 
 /**
  * Handler class for global messages between the cluster
@@ -33,6 +35,7 @@ class GlobalMessageService(
 
     init {
         register(CancelJob::class.java, HandleCancel::class.java)
+        register(RescheduleJob::class.java, HandleReschedule::class.java)
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -59,7 +62,7 @@ class GlobalMessageService(
      * Broadcasts the provided [message] to all workers
      */
     final inline fun <reified T : Any> broadcast(message: T) {
-        template.convertAndSend(BROADCAST_EXCHANGE,"", serializeToJson(message))
+        template.convertAndSend(BROADCAST_EXCHANGE, "", serializeToJson(message))
     }
 
     /**
@@ -102,3 +105,11 @@ data class GlobalMessageJson(val id: Long, val data: String)
 
 @Serializable
 data class CancelJob(val id: Long)
+
+@Serializable
+data class RescheduleJob(val id: Long, val time: Long) {
+    constructor(id: Long, time: Timestamp) : this(id, time.time)
+
+    val timestamp: Timestamp
+        get() = Timestamp(time)
+}

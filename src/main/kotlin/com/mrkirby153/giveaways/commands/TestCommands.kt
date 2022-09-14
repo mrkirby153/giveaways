@@ -30,6 +30,18 @@ class CancelArgs : Arguments() {
     }.required()
 }
 
+class RescheduleArgs : Arguments() {
+    val id by long {
+        name = "id"
+        description = "The id of the task to reschedule"
+    }.required()
+
+    val newTime by duration {
+        name = "new_time"
+        description = "The new duration to reschedule"
+    }.required()
+}
+
 @Component
 class TestCommands(
     private val jobScheduler: JobScheduler
@@ -53,6 +65,18 @@ class TestCommands(
             action {
                 jobScheduler.cancel(args.id)
                 reply("Canceled task").setEphemeral(true).queue()
+            }
+        }
+
+        executor.slashCommand<RescheduleArgs> {
+            name = "reschedule"
+            description = "reschedule a task"
+            action {
+                jobScheduler.reschedule(
+                    args.id,
+                    Timestamp.from(Instant.now().plusMillis(args.newTime))
+                )
+                reply("Rescheduled task with id ${args.id}").setEphemeral(true).queue()
             }
         }
     }

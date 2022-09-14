@@ -15,7 +15,7 @@ class JobEntity(
     var data: String?,
     val queue: String,
     @Column(name = "run_at")
-    val runAt: Timestamp
+    var runAt: Timestamp
 ) : AutoIncrementingJpaEntity<Long>()
 
 interface JobRepository : JpaRepository<JobEntity, Long>

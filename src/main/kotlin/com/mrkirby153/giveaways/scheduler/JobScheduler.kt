@@ -6,6 +6,7 @@ import com.mrkirby153.giveaways.scheduler.jpa.JobRepository
 import com.mrkirby153.giveaways.scheduler.message.CancelJob
 import com.mrkirby153.giveaways.scheduler.message.GlobalMessageService
 import com.mrkirby153.giveaways.scheduler.message.JobScheduled
+import com.mrkirby153.giveaways.scheduler.message.RescheduleJob
 import com.mrkirby153.giveaways.utils.log
 import com.rabbitmq.client.Channel
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -50,6 +51,8 @@ interface JobScheduler {
     fun listen(queue: String)
 
     fun unlisten(queue: String)
+
+    fun reschedule(jobId: Long, newTime: Timestamp, brodcast: Boolean = true)
 }
 
 @Service
@@ -110,7 +113,7 @@ class JobManager(
             setMessageListener(JobQueueListener(publisher, this@JobManager))
             acknowledgeMode = AcknowledgeMode.MANUAL
             connectionFactory = this@JobManager.connectionFactory
-            setPrefetchCount(9999)
+            setPrefetchCount(65535)
             addQueueNames(JOB_QUEUE_FORMAT.format(queue))
             setAmqpAdmin(admin)
         }
@@ -125,6 +128,33 @@ class JobManager(
         }
         val container = listeningQueues.remove(queue)
         container?.stop()
+    }
+
+    override fun reschedule(jobId: Long, newTime: Timestamp, broadcast: Boolean) {
+        check(newTime.after(Timestamp.from(Instant.now()))) { "Cannot reschedule a task to a time in the past" }
+        val existing = waitingJobs[jobId]
+
+        if (existing != null && !broadcast) {
+            log.debug("Rescheduling job {} to run at {}", jobId, newTime)
+            val job = repository.findById(jobId)
+            val (future, channel, deliveryTag) = existing
+            if (!future.isDone && !future.isCancelled) {
+                log.debug("Cancelling future and replacing")
+                future.cancel(false)
+                job.ifPresent {
+                    val newFuture = scheduler.schedule({
+                        invoke(it)
+                    }, newTime)
+                    waitingJobs[jobId] = Triple(newFuture, channel, deliveryTag)
+                    it.runAt = newTime
+                    repository.save(it)
+                }
+            }
+        }
+        if (broadcast) {
+            log.debug("Broadcasting reschedule")
+            globalMessageService.broadcast(RescheduleJob(jobId, newTime))
+        }
     }
 
     private fun declareQueue(queue: String) {
@@ -191,6 +221,7 @@ class JobManager(
             log.debug("Rescheduling {}", id)
             if (!existing.first.isDone && !existing.first.isCancelled)
                 existing.first.cancel(false)
+            existing.third.basicAck(existing.second, false)
         }
         log.debug("Scheduling execution of job {} at {}", id, job.runAt)
         val future = scheduler.schedule({
