@@ -36,6 +36,7 @@ import java.sql.Timestamp
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 import javax.transaction.Transactional
 
 
@@ -104,7 +105,7 @@ class JobManager(
 
     override fun listen(queue: String) {
         if (queue in listeningQueues.keys) {
-            log.warn("Attempting to listen to a queue that we're already listening to: {}", queue)
+            log.debug("Attempting to listen to a queue that we're already listening to: {}", queue)
             return
         }
         declareQueue(queue)
@@ -123,7 +124,7 @@ class JobManager(
 
     override fun unlisten(queue: String) {
         if (queue !in listeningQueues.keys) {
-            log.warn("Attempting to stop listening to a queue we're not listening to: {}", queue)
+            log.debug("Attempting to stop listening to a queue we're not listening to: {}", queue)
             return
         }
         val container = listeningQueues.remove(queue)
@@ -158,7 +159,13 @@ class JobManager(
     }
 
     private fun declareQueue(queue: String) {
-        val ampqQueue = Queue(JOB_QUEUE_FORMAT.format(queue), true, false, false)
+        val ampqQueue = Queue(
+            JOB_QUEUE_FORMAT.format(queue),
+            true,
+            false,
+            false,
+            mapOf("x-expires" to TimeUnit.MILLISECONDS.convert(14, TimeUnit.DAYS))
+        )
         admin.declareQueue(ampqQueue)
     }
 
