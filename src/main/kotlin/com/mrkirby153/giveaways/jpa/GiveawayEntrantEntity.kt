@@ -12,15 +12,24 @@ import javax.persistence.Table
  */
 @Table(name = "entrants")
 @Entity
+@LazyEntity
 class GiveawayEntrantEntity(
-    @ManyToOne
-    @JoinColumn(name = "giveaway_id")
-    val giveaway: GiveawayEntity,
     @Column(name = "user_id")
     val userId: String
-) : AutoIncrementingJpaEntity<Long>()
+) : AutoIncrementingJpaEntity<Long>() {
+
+    @ManyToOne
+    @JoinColumn(name = "giveaway_id")
+    lateinit var giveaway: GiveawayEntity
+
+    constructor(giveaway: GiveawayEntity, userId: String) : this(userId) {
+        this.giveaway = giveaway
+    }
+
+}
 
 
 interface EntrantRepository : JpaRepository<GiveawayEntrantEntity, Long> {
 
+    fun existsByGiveawayAndUserId(giveaway: GiveawayEntity, userId: String): Boolean
 }

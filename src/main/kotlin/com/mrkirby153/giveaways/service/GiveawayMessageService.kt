@@ -46,6 +46,8 @@ class GiveawayMessageManager(
                 color = Color.GREEN
             }
             description = buildString {
+                appendLine("**${entity.name}**")
+                appendLine()
                 appendLine("Click the button below to enter!")
                 val endsAt = entity.endsAt.time / 1000
                 appendLine()

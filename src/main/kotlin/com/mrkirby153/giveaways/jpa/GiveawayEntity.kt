@@ -26,32 +26,33 @@ enum class GiveawayState {
 @Entity
 @Table(name = "giveaways")
 @EntityListeners(AuditingEntityListener::class)
+@LazyEntity
 class GiveawayEntity(
     var name: String,
     @Column(name = "guild_id")
-    val guildId: String,
+    var guildId: String,
     @Column(name = "channel")
-    val channelId: String,
+    var channelId: String,
     @Column(name = "message")
     var messageId: String,
     var winners: Int,
     @Column(name = "host")
     var host: String?,
-    var secret: Boolean = false,
     @Column(name = "created_at")
     var createdAt: Timestamp? = null,
     @Column(name = "ends_at")
     var endsAt: Timestamp,
     @Column(name = "interaction_uuid")
     var interactionUuid: String = UUID.randomUUID().toString(),
-    @OneToMany(cascade = [CascadeType.ALL], mappedBy = "giveaway")
-    var entrants: MutableList<GiveawayEntrantEntity> = mutableListOf(),
     @Enumerated(EnumType.ORDINAL)
     var state: GiveawayState = GiveawayState.RUNNING,
     @Column(name = "final_winners")
     private var finalWinners: String? = null,
     var version: Long = 2,
 ) : AutoIncrementingJpaEntity<Long>() {
+
+    @OneToMany(mappedBy = "giveaway", cascade = [CascadeType.ALL])
+    lateinit var entrants: MutableList<GiveawayEntrantEntity>
 
     /**
      * Gets the winners of the giveaway
@@ -78,4 +79,9 @@ interface GiveawayRepository : JpaRepository<GiveawayEntity, Long> {
 
     @Query("SELECT e FROM GiveawayEntity e WHERE e.id = cast((:id) as long) OR e.messageId = (:id)")
     fun getFirstByMessageIdOrSnowflake(id: String): GiveawayEntity?
+
+    @Query("SELECT e.interactionUuid from GiveawayEntity e WHERE e.state = com.mrkirby153.giveaways.jpa.GiveawayState.RUNNING")
+    fun getAllInteractionUuidsForRunningGiveaways(): List<String>
+
+    fun getByInteractionUuid(uuid: String): GiveawayEntity?
 }

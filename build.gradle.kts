@@ -8,6 +8,7 @@ plugins {
     kotlin("plugin.spring") version "1.7.10"
     kotlin("plugin.jpa") version "1.7.10"
     kotlin("plugin.serialization") version "1.7.10"
+    kotlin("plugin.allopen") version "1.7.10"
     id("org.flywaydb.flyway") version "8.3.0"
 }
 
@@ -101,4 +102,8 @@ flyway {
     url = getProperty("spring.datasource.url")
     user = getProperty("spring.datasource.username")
     password = getProperty("spring.datasource.password")
+}
+
+allOpen {
+    annotation("com.mrkirby153.giveaways.jpa.LazyEntity")
 }

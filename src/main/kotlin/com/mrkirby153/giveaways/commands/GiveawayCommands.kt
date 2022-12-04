@@ -8,12 +8,14 @@ import com.mrkirby153.botcore.command.slashcommand.dsl.types.int
 import com.mrkirby153.botcore.command.slashcommand.dsl.types.string
 import com.mrkirby153.botcore.command.slashcommand.dsl.types.textChannel
 import com.mrkirby153.botcore.command.slashcommand.dsl.types.user
+import com.mrkirby153.botcore.coroutine.await
 import com.mrkirby153.giveaways.jpa.GiveawayState
 import com.mrkirby153.giveaways.service.GiveawayService
 import com.mrkirby153.giveaways.utils.canSeeGiveaway
 import com.mrkirby153.giveaways.utils.canTalk
 import com.mrkirby153.giveaways.utils.giveawayIsInState
 import com.mrkirby153.giveaways.utils.requirePermissions
+import kotlinx.coroutines.runBlocking
 import me.mrkirby153.kcutils.Time
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel
@@ -35,7 +37,7 @@ private class StartArgs : Arguments() {
     val winners by int {
         name = "winners"
         description = "The number of winners"
-    }.optional()
+    }.optional(1)
     val host by user {
         name = "host"
         description = "The host of the giveaway (Defaults to you)"
@@ -78,14 +80,15 @@ class GiveawayCommands(
                     } catch (e: IllegalArgumentException) {
                         throw CommandException("Could not parse the provided duration `${args.duration}`")
                     }
-                    giveawayService.start(
-                        channel,
-                        args.name,
-                        System.currentTimeMillis() + duration,
-                        args.winners ?: 1,
-                        args.host ?: this.user
-                    ).thenAccept {
-                        replyHook.editOriginal("Started giveaway in ${channel.asMention}").queue()
+                    runBlocking {
+                        giveawayService.start(
+                            channel,
+                            args.name,
+                            System.currentTimeMillis() + duration,
+                            args.winners,
+                            args.host ?: this@action.user
+                        )
+                        replyHook.editOriginal("Started giveaway in ${channel.asMention}").await()
                     }
                 }
             }

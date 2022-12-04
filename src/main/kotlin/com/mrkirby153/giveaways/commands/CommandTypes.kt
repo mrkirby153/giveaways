@@ -31,7 +31,7 @@ object GiveawayConverter : ArgumentConverter<GiveawayEntity> {
             ?: throw ArgumentParseException("Giveaway not found")
     }
 
-    override val type = OptionType.INTEGER
+    override val type = OptionType.STRING
 }
 
 fun Arguments.giveaway(body: ArgumentBuilder<GiveawayEntity>.() -> Unit) =

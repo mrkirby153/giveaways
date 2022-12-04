@@ -1,10 +1,13 @@
 package com.mrkirby153.giveaways.service
 
+import com.mrkirby153.botcore.coroutine.await
 import com.mrkirby153.giveaways.events.GiveawayEndingEvent
 import com.mrkirby153.giveaways.events.GiveawayStartedEvent
 import com.mrkirby153.giveaways.jpa.GiveawayEntity
 import com.mrkirby153.giveaways.jpa.GiveawayRepository
 import com.mrkirby153.giveaways.jpa.GiveawayState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.entities.User
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel
@@ -13,7 +16,6 @@ import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Service
 import java.sql.Timestamp
 import java.time.Instant
-import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
 import javax.persistence.EntityNotFoundException
 
@@ -22,13 +24,13 @@ interface GiveawayService {
     /**
      * Starts a giveaway
      */
-    fun start(
+    suspend fun start(
         channel: TextChannel,
         name: String,
         endsAt: Long,
         winners: Int,
         host: User
-    ): CompletableFuture<GiveawayEntity>
+    ): GiveawayEntity
 
     /**
      * Ends a giveaway
@@ -60,38 +62,41 @@ class GiveawayManager(
     private val eventPublisher: ApplicationEventPublisher
 ) : GiveawayService {
 
-    override fun start(
+    override suspend fun start(
         channel: TextChannel,
         name: String,
         endsAt: Long,
         winners: Int,
         host: User
-    ): CompletableFuture<GiveawayEntity> {
-        if (!channel.canTalk()) {
-            return CompletableFuture.failedFuture(IllegalStateException("Cannot talk in channel"))
-        }
-        if (!channel.guild.selfMember.hasPermission(Permission.MESSAGE_EMBED_LINKS)) {
-            return CompletableFuture.failedFuture(IllegalStateException("Missing embed permissions"))
-        }
-        var entity = GiveawayEntity(
-            name,
-            channel.guild.id,
-            channel.id,
-            "",
-            winners,
-            host = host.id,
-            endsAt = Timestamp.from(
-                Instant.ofEpochMilli(endsAt)
+    ): GiveawayEntity {
+        check(channel.canTalk()) { "Can't talk in channel ${channel.name}" }
+        check(
+            channel.guild.selfMember.hasPermission(
+                channel,
+                Permission.MESSAGE_EMBED_LINKS
             )
-        )
-        entity = giveawayRepository.save(entity)
-        val msg = giveawayMessageService.render(entity)
-        return channel.sendMessage(msg.create()).submit().thenApply {
-            entity.messageId = it.id
-            val result = giveawayRepository.save(entity)
-            eventPublisher.publishEvent(GiveawayStartedEvent(result))
-            result
+        ) { "Missing embed permissions" }
+        var entity = withContext(Dispatchers.IO) {
+            giveawayRepository.save(
+                GiveawayEntity(
+                    name,
+                    channel.guild.id,
+                    channel.id,
+                    "",
+                    winners,
+                    host.id,
+                    null, Timestamp.from(Instant.ofEpochMilli(endsAt))
+                )
+            )
         }
+        val msg = giveawayMessageService.render(entity)
+        val discordMessage = channel.sendMessage(msg.create()).await()
+        entity.messageId = discordMessage.id
+        entity = withContext(Dispatchers.IO) {
+            giveawayRepository.save(entity)
+        }
+        eventPublisher.publishEvent(GiveawayStartedEvent(entity))
+        return entity
     }
 
     override fun end(entity: GiveawayEntity) {
