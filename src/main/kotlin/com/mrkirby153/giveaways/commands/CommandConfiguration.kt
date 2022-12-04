@@ -21,18 +21,15 @@ class CommandConfiguration(
     @Value("\${bot.commands.guilds:}")
     private val slashCommandGuilds: String,
     private val shardManager: ShardManager,
-    private val context: ApplicationContext,
+    private val slashCommands: List<DslSlashCommandProvider>,
     private val slashCommandExecutor: DslCommandExecutor
 ) {
-
-    @Bean("slashCommandProviders")
-    fun slashCommandProviders() = slashCommands.map { context.getBean(it.java) }
 
 
     @EventListener
     fun onReady(botReadyEvent: BotReadyEvent) {
         log.info("Registering Slash Commands")
-        slashCommandProviders().forEach {
+        slashCommands.forEach {
             log.debug("Registering slash commands in ${it.javaClass}")
             it.register(slashCommandExecutor)
         }
