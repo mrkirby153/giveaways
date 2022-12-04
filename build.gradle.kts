@@ -42,11 +42,11 @@ dependencies {
 
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.4.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.4.1")
 
-    implementation("com.mrkirby153:bot-core:4.2-SNAPSHOT")
+    implementation("com.mrkirby153:bot-core:5.0-SNAPSHOT")
     implementation("com.mrkirby153:interaction-menus:1.0-SNAPSHOT")
-    implementation("net.dv8tion:JDA:5.0.0-alpha.18")
+    implementation("net.dv8tion:JDA:5.0.0-beta.1")
 
     implementation("me.mrkirby153:KirbyUtils-Common:3.4-SNAPSHOT")
 

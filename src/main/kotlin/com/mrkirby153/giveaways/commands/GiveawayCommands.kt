@@ -16,7 +16,7 @@ import com.mrkirby153.giveaways.utils.giveawayIsInState
 import com.mrkirby153.giveaways.utils.requirePermissions
 import me.mrkirby153.kcutils.Time
 import net.dv8tion.jda.api.Permission
-import net.dv8tion.jda.api.entities.TextChannel
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel
 import org.springframework.stereotype.Component
 
 private class StartArgs : Arguments() {

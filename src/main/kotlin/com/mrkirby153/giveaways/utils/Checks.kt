@@ -7,8 +7,8 @@ import com.mrkirby153.botcore.utils.PrerequisiteCheck
 import com.mrkirby153.giveaways.jpa.GiveawayEntity
 import com.mrkirby153.giveaways.jpa.GiveawayState
 import net.dv8tion.jda.api.Permission
-import net.dv8tion.jda.api.entities.GuildChannel
-import net.dv8tion.jda.api.entities.MessageChannel
+import net.dv8tion.jda.api.entities.channel.middleman.GuildChannel
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel
 
 fun PrerequisiteCheck<out Arguments>.isNumeric(string: String) {
     failWhen(string.toDoubleOrNull() == null, "`$string` is not a number")
