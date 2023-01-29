@@ -48,7 +48,7 @@ dependencies {
 
     implementation("com.mrkirby153:bot-core:5.0-SNAPSHOT")
     implementation("com.mrkirby153:interaction-menus:1.0-SNAPSHOT")
-    implementation("net.dv8tion:JDA:5.0.0-beta.1")
+    implementation("net.dv8tion:JDA:5.0.0-beta.3")
 
     implementation("me.mrkirby153:KirbyUtils-Common:3.4-SNAPSHOT")
 

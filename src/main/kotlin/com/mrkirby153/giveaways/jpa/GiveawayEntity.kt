@@ -83,5 +83,14 @@ interface GiveawayRepository : JpaRepository<GiveawayEntity, Long> {
     @Query("SELECT e.interactionUuid from GiveawayEntity e WHERE e.state = com.mrkirby153.giveaways.jpa.GiveawayState.RUNNING")
     fun getAllInteractionUuidsForRunningGiveaways(): List<String>
 
+    fun getAllByGuildIdInAndStateIn(
+        guilds: List<String>,
+        states: List<GiveawayState>
+    ): List<GiveawayEntity>
+
+    @Query("SELECT e FROM GiveawayEntity e WHERE e.guildId IN (:guilds) AND e.state = com.mrkirby153.giveaways.jpa.GiveawayState.RUNNING ORDER BY e.endsAt")
+    fun getNextEnds(guilds: List<String>): List<GiveawayEntity?>
+    fun getAllByGuildIdInAndEndsAtIsBeforeAndStateIs(guilds: List<String>, timestamp: Timestamp, state: GiveawayState): List<GiveawayEntity>
+
     fun getByInteractionUuid(uuid: String): GiveawayEntity?
 }

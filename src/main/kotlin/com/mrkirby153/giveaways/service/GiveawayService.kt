@@ -1,21 +1,27 @@
 package com.mrkirby153.giveaways.service
 
 import com.mrkirby153.botcore.coroutine.await
+import com.mrkirby153.botcore.spring.event.BotReadyEvent
 import com.mrkirby153.giveaways.events.GiveawayEndingEvent
 import com.mrkirby153.giveaways.events.GiveawayStartedEvent
 import com.mrkirby153.giveaways.jpa.GiveawayEntity
 import com.mrkirby153.giveaways.jpa.GiveawayRepository
 import com.mrkirby153.giveaways.jpa.GiveawayState
+import com.mrkirby153.giveaways.utils.log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import me.mrkirby153.kcutils.Time
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.entities.User
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel
+import net.dv8tion.jda.api.sharding.ShardManager
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.event.EventListener
+import org.springframework.scheduling.TaskScheduler
 import org.springframework.stereotype.Service
 import java.sql.Timestamp
 import java.time.Instant
+import java.util.concurrent.ScheduledFuture
 import java.util.regex.Pattern
 import javax.persistence.EntityNotFoundException
 
@@ -51,16 +57,28 @@ interface GiveawayService {
      * Looks up a giveaway by its id or the snowflake of the message id
      */
     fun lookupByIdOrMessageId(idOrSnowflake: String): GiveawayEntity?
+
+    /**
+     * Gets a list of all giveaways that are running on all shards in the current process
+     */
+    fun getAllGiveawaysForCurrentProcess(vararg state: GiveawayState): List<GiveawayEntity>
 }
 
 private val snowflakeRegex = Pattern.compile("\\d{17,20}")
 
 @Service
 class GiveawayManager(
+    private val shardManager: ShardManager,
     private val giveawayRepository: GiveawayRepository,
     private val giveawayMessageService: GiveawayMessageService,
-    private val eventPublisher: ApplicationEventPublisher
+    private val eventPublisher: ApplicationEventPublisher,
+    private val taskScheduler: TaskScheduler
 ) : GiveawayService {
+
+    private final val endLock = Any()
+
+    private var endTask: ScheduledFuture<*>? = null
+    private var nextRunAt: Long? = null
 
     override suspend fun start(
         channel: TextChannel,
@@ -100,6 +118,7 @@ class GiveawayManager(
     }
 
     override fun end(entity: GiveawayEntity) {
+        log.debug("Ending giveaway {}", entity)
         entity.state = GiveawayState.ENDING
         val newEntity = giveawayRepository.save(entity)
         eventPublisher.publishEvent(GiveawayEndingEvent(newEntity))
@@ -124,13 +143,78 @@ class GiveawayManager(
         }
     }
 
-    private fun scheduleEndJob(giveaway: GiveawayEntity) {
+    override fun getAllGiveawaysForCurrentProcess(vararg state: GiveawayState): List<GiveawayEntity> {
+        val guilds = shardManager.guildCache.map { it.id }.toList()
+        return giveawayRepository.getAllByGuildIdInAndStateIn(
+            guilds,
+            (if (state.isEmpty()) GiveawayState.values() else state).toList()
+        )
+    }
+
+    private fun scheduleNextEndsAt(
+        runAt: Long? = giveawayRepository.getNextEnds(shardManager.guildCache.map { it.id }
+            .toList()).firstOrNull()?.endsAt?.time
+    ) {
+        synchronized(endLock) {
+            if (this.nextRunAt != null && runAt != null) {
+                if (runAt > this.nextRunAt!!) {
+                    log.debug(
+                        "Not re-scheduling as runAt ({}) is greater than the already scheduled task ({})",
+                        runAt,
+                        this.nextRunAt
+                    )
+                    return
+                }
+            }
+            if (runAt == null) {
+                log.debug("Not scheduling new task as runAt is null")
+                return
+            }
+            endTask?.cancel(false)
+            val runInstant = Instant.ofEpochMilli(runAt)
+            log.debug(
+                "Scheduling new end task at {} (in {})",
+                runInstant,
+                Time.format(1, runInstant.toEpochMilli() - System.currentTimeMillis())
+            )
+            endTask = taskScheduler.schedule({
+                endAllGiveaways()
+            }, runInstant)
+            this.nextRunAt = runAt
+        }
+    }
+
+    private fun endAllGiveaways() {
+        log.debug("Ending all giveaways")
+        synchronized(endLock) {
+            try {
+                val ended =
+                    giveawayRepository.getAllByGuildIdInAndEndsAtIsBeforeAndStateIs(
+                        shardManager.guildCache.map { it.id },
+                        Timestamp(Instant.now().plusSeconds(1).toEpochMilli()),
+                        GiveawayState.RUNNING
+                    )
+                if (ended.isNotEmpty()) {
+                    log.debug("Ending {} giveaways", ended.size)
+                }
+                ended.forEach {
+                    end(it)
+                }
+            } finally {
+                this.nextRunAt = null
+                scheduleNextEndsAt()
+            }
+        }
     }
 
 
     @EventListener
     fun onGiveawayStart(event: GiveawayStartedEvent) {
-        scheduleEndJob(event.giveaway)
+        scheduleNextEndsAt(event.giveaway.endsAt.time)
     }
 
+    @EventListener
+    fun onReady(event: BotReadyEvent) {
+        scheduleNextEndsAt()
+    }
 }
