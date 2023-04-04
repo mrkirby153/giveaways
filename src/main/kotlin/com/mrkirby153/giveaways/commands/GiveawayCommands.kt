@@ -44,18 +44,20 @@ private class StartArgs : Arguments() {
     }.optional()
 }
 
-private class EndArgs : Arguments() {
-    val giveaway by giveaway {
-        name = "id"
-        description = "Either the id or message id of the giveaway to end"
-    }.required()
-}
-
 
 @Component
 class GiveawayCommands(
-    private val giveawayService: GiveawayService
+    private val giveawayService: GiveawayService,
+    private val commandTypes: CommandTypes
 ) : DslSlashCommandProvider {
+
+    private inner class EndArgs : Arguments() {
+        val giveaway by commandTypes.giveaway(this) {
+            name = "id"
+            description = "Either the id or message id of the giveaway to end"
+        }.required()
+    }
+
     override fun register(executor: DslCommandExecutor) {
         executor.slashCommand(::StartArgs) {
             name = "start"

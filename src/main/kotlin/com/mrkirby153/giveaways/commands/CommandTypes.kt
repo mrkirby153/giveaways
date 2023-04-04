@@ -6,36 +6,27 @@ import com.mrkirby153.botcore.command.slashcommand.dsl.Arguments
 import com.mrkirby153.botcore.command.slashcommand.dsl.types.ArgumentBuilder
 import com.mrkirby153.giveaways.jpa.GiveawayEntity
 import com.mrkirby153.giveaways.jpa.GiveawayRepository
-import com.mrkirby153.giveaways.utils.log
 import me.mrkirby153.kcutils.Time
 import net.dv8tion.jda.api.interactions.commands.OptionMapping
 import net.dv8tion.jda.api.interactions.commands.OptionType
-import org.springframework.context.annotation.Configuration
+import org.springframework.stereotype.Service
 
-@Configuration
-private class CommandTypeConfig(giveawayRepository: GiveawayRepository) {
-    init {
-        log.info("Initializing command types")
-        Companion.giveawayRepository = giveawayRepository
+@Service
+class CommandTypes(
+    private val repository: GiveawayRepository
+) {
+    inner class GiveawayConverter : ArgumentConverter<GiveawayEntity> {
+        override fun convert(input: OptionMapping): GiveawayEntity {
+            return repository.getFirstByMessageIdOrSnowflake(input.asString)
+                ?: throw ArgumentParseException("Giveaway not found")
+        }
     }
 
-    companion object {
-        lateinit var giveawayRepository: GiveawayRepository
-    }
+    private val giveawayConverter = GiveawayConverter()
+
+    fun giveaway(arguments: Arguments, body: ArgumentBuilder<GiveawayEntity>.() -> Unit) =
+        ArgumentBuilder(arguments, giveawayConverter).apply(body)
 }
-
-object GiveawayConverter : ArgumentConverter<GiveawayEntity> {
-
-    override fun convert(input: OptionMapping): GiveawayEntity {
-        return CommandTypeConfig.giveawayRepository.getFirstByMessageIdOrSnowflake(input.asString)
-            ?: throw ArgumentParseException("Giveaway not found")
-    }
-
-    override val type = OptionType.STRING
-}
-
-fun Arguments.giveaway(body: ArgumentBuilder<GiveawayEntity>.() -> Unit) =
-    ArgumentBuilder(this, GiveawayConverter).apply(body)
 
 object DurationConverter : ArgumentConverter<Long> {
     override fun convert(input: OptionMapping): Long {
@@ -50,4 +41,5 @@ object DurationConverter : ArgumentConverter<Long> {
 
 }
 
-fun Arguments.duration(body: ArgumentBuilder<Long>.() -> Unit) = ArgumentBuilder(this, DurationConverter).apply(body)
+fun Arguments.duration(body: ArgumentBuilder<Long>.() -> Unit) =
+    ArgumentBuilder(this, DurationConverter).apply(body)
