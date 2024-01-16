@@ -1,20 +1,14 @@
 package com.mrkirby153.giveaways.k8s
 
-import com.google.gson.reflect.TypeToken
 import com.mrkirby153.botcore.utils.SLF4J
-import io.kubernetes.client.custom.V1Patch
 import io.kubernetes.client.openapi.ApiException
 import io.kubernetes.client.openapi.apis.CoordinationV1Api
 import io.kubernetes.client.openapi.models.V1Lease
 import io.kubernetes.client.openapi.models.V1LeaseSpec
 import io.kubernetes.client.openapi.models.V1ObjectMeta
-import io.kubernetes.client.util.PatchUtils
-import io.kubernetes.client.util.Watch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.OffsetDateTime
@@ -22,375 +16,271 @@ import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.Random
 
-
-private enum class State {
-    LEADER, FOLLOWER, UNKNOWN
-}
-
 private val random = Random()
 
+/**
+ * A relatively simple leader election system utilizing kubernetes Leases.
+ */
 class LeaderElection(
+    /**
+     * The name of the lock to acquire
+     */
     private val resourceName: String,
-    private val nodeName: String,
-    private val ttl: Long = 30L,
+    /**
+     * The identifier to use for leader election
+     */
+    private val identifier: String,
+    /**
+     * The namespace this Lease should be created in
+     */
     private val namespace: String = "default",
-    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
+    /**
+     * A [CoroutineScope] for executing callbacks
+     */
+    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default),
+    /**
+     * How long the lease should last
+     */
+    private val leaseDuration: Long = 30,
+    /**
+     * The period that the client will use to renew
+     */
+    private val renewDeadline: Long = 25,
+    /**
+     * The delay between actions
+     */
+    private val retryPeriod: Long = 2,
 ) {
     private val log by SLF4J
 
-    private val coordinationApi = CoordinationV1Api()
+    private val api = CoordinationV1Api()
 
     /**
-     * A list of callbacks that are ran when this node becomes a leader
+     * Callbacks executed when this node starts leading
      */
-    private val becomeLeaderCallbacks = mutableListOf<suspend () -> Unit>()
+    private val onStartLeadingCallbacks = mutableListOf<suspend () -> Unit>()
 
     /**
-     * A list of callbacks that are ran when this node is no longer a leader
+     * Callbacks executed when this node stops leading
      */
-    private val demotedCallbacks = mutableListOf<suspend () -> Unit>()
+    private val onStoppedLeadingCallbacks = mutableListOf<suspend () -> Unit>()
 
     /**
-     * The current state of this node
+     * Callbacks executed when the leader changes
      */
-    private var state: State = State.UNKNOWN
+    private val onNewLeaderCallbacks = mutableListOf<suspend (String) -> Unit>()
+
+    private var running = true
+
+    private var isLeader = false
 
     /**
-     * The job that is responsible for watching for changes
+     * A [callback] executed when this node starts leading
      */
-    private var watchJob: Job? = null
-
-    /**
-     * The job to refresh the leader's
-     */
-    private var refreshTtlJob: Job? = null
-
-    /**
-     * The job to start an election
-     */
-    private var followerElectionJob: Job? = null
-
-
-    /**
-     * Initializes the leader election
-     */
-    fun init() {
-        coroutineScope.launch {
-            elect()
-        }
-    }
-
-
-    /**
-     * A [callback] that is executed when this node becomes the leader
-     */
-    fun onBecomeLeader(callback: () -> Unit) {
-        this.becomeLeaderCallbacks.add(callback)
+    fun onStartLeading(callback: suspend () -> Unit) {
+        this.onStartLeadingCallbacks.add(callback)
     }
 
     /**
-     * A [callback] that is executed when this node is no longer the leader
+     * A [callback] executed when this node stops leading
      */
-    fun onDemote(callback: () -> Unit) {
-        this.demotedCallbacks.add(callback)
+    fun onStoppedLeading(callback: suspend () -> Unit) {
+        this.onStoppedLeadingCallbacks.add(callback)
+    }
+
+    /**
+     * A [callback] executed when the leader changes
+     */
+    fun onNewLeader(callback: suspend (String) -> Unit) {
+        this.onNewLeaderCallbacks.add(callback)
     }
 
 
-    private suspend fun elect(attempts: Int = 0) {
-        if (attempts > 10) {
-            error("Unable to elect a leader after 10 attempts")
-        }
-        try {
-            log.debug("Initializing leader election attempt ${attempts + 1}")
-            reset()
-            delay(random.nextLong(500)) // Jitter to hopefully avoid races
-
-            val currentLease = withContext(Dispatchers.IO) { getLease() }
-            if (currentLease == null) {
-                log.debug("Lease does not exist. Creating and acquiring")
-                val created = createLease()
-                onLead()
-                this.state = State.LEADER
-            } else {
-                if (canAcquireLease(currentLease)) {
-                    log.debug("Lease is stale, acquiring...")
-                    acquireLease(currentLease)
-                    onLead()
-                    this.state = State.LEADER
-                } else {
-                    log.debug("Current leader is ${currentLease.spec?.holderIdentity}. Following...")
-                    onFollow()
-                    this.state = State.FOLLOWER
-                }
-            }
-
-            log.debug("Leader election completed")
-        } catch (e: Exception) {
-            log.error("Error during leader election, retrying in 1 second", e)
-            coroutineScope.launch {
-                delay(1000)
-                elect(attempts + 1)
-            }
-        }
-    }
-
-    private fun canAcquireLease(lease: V1Lease): Boolean {
-        val holder = lease.spec?.holderIdentity ?: return true
-        val renewTime = lease.spec?.renewTime ?: return true
-        if (holder != this.nodeName) {
-            // Check if the lease is expired
-            val expiresAt =
-                renewTime.plusSeconds(lease.spec?.leaseDurationSeconds?.toLong() ?: return true)
-            return expiresAt.isBefore(OffsetDateTime.now())
-        }
-        return false
-    }
-
-    private fun getLease(): V1Lease? {
-        log.trace("Retrieving lease ${this.resourceName} in ${this.namespace}")
-        try {
-            return coordinationApi.readNamespacedLease(this.resourceName, this.namespace, null)
-        } catch (e: ApiException) {
-            if (e.code == 404) {
-                log.trace("Resource not found. ${e.responseBody}")
-                return null
-            }
-            error("Caught API Exception ${e.code}: ${e.responseBody}")
-        }
-    }
-
-    fun expiresAt(): OffsetDateTime {
-        val lease = getLease()
-        return lease?.spec?.renewTime?.plusSeconds(
-            lease.spec?.leaseDurationSeconds?.toLong() ?: 0L
-        ) ?: return OffsetDateTime.now()
-    }
-
-    private fun createLease(): V1Lease {
-        val newLease = V1Lease().apply {
-            spec = V1LeaseSpec().apply {
-                acquireTime = OffsetDateTime.now(ZoneId.of("UTC")).truncatedTo(ChronoUnit.MICROS)
-                renewTime = OffsetDateTime.now(ZoneId.of("UTC")).truncatedTo(ChronoUnit.MICROS)
-                holderIdentity = this@LeaderElection.nodeName
-                leaseDurationSeconds = ttl.toInt()
-            }
-            metadata = V1ObjectMeta().apply {
-                name = this@LeaderElection.resourceName
-                namespace = this@LeaderElection.namespace
-            }
-        }
-        return coordinationApi.createNamespacedLease(
-            this.namespace, newLease, null, null, null, null
-        )
-    }
-
-    private fun acquireLease(lease: V1Lease) {
-        val acquireTime = OffsetDateTime.now(ZoneId.of("UTC")).truncatedTo(ChronoUnit.MICROS)
-        val renewTime = OffsetDateTime.now(ZoneId.of("UTC")).truncatedTo(ChronoUnit.MICROS)
-        val holderIdentity = this@LeaderElection.nodeName
-
-        val patch = makePatch(
-            buildReplaceOp("/spec/acquireTime", acquireTime.toString()),
-            buildReplaceOp("/spec/renewTime", renewTime.toString()),
-            buildReplaceOp("/spec/holderIdentity", holderIdentity)
-        )
-
-        PatchUtils.patch(V1Lease::class.java, {
-            coordinationApi.patchNamespacedLeaseCall(
-                lease.metadata?.name,
-                lease.metadata?.namespace,
-                V1Patch(patch),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-            )
-        }, V1Patch.PATCH_FORMAT_JSON_PATCH, coordinationApi.apiClient)
-    }
-
-    private fun refreshLease(lease: V1Lease) {
-        check(lease?.spec?.holderIdentity == this.nodeName) { "Invariant: Refusing to refresh a lease we do not own" }
-        val patch = makePatch(
-            buildReplaceOp(
-                "/spec/renewTime",
-                OffsetDateTime.now(ZoneId.of("UTC")).truncatedTo(ChronoUnit.MICROS).toString()
-            )
-        )
-        PatchUtils.patch(V1Lease::class.java, {
-            coordinationApi.patchNamespacedLeaseCall(
-                lease.metadata?.name,
-                lease.metadata?.namespace,
-                V1Patch(patch),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-            )
-        }, V1Patch.PATCH_FORMAT_JSON_PATCH, coordinationApi.apiClient)
-    }
-
-    private fun onLead() {
-        becomeLeaderCallbacks.forEach {
-            coroutineScope.launch { it() }
-        }
-        launchLeaseRefresh()
-        watch(true)
-    }
-
-    private fun onFollow() {
-        if (state == State.LEADER) {
-            // Transitioning from leader -> follower, run callbacks
-            demotedCallbacks.forEach {
-                coroutineScope.launch {
-                    it()
-                }
-            }
-        }
-        refreshTtlJob?.cancel()
-        watch(false)
-        launchElectionTimer(expiresAt())
-    }
-
-
-    private fun launchLeaseRefresh() {
-        refreshTtlJob?.cancel()
-        refreshTtlJob = coroutineScope.launch {
-            log.debug("Refreshing lease every $ttl seconds")
-            while (true) {
-                log.debug("Refreshing lease")
-                val lease = getLease() ?: error("Lease not found")
-                try {
-                    refreshLease(lease)
-                    log.debug("Refreshed lease")
-                } catch (e: Exception) {
-                    log.error("Could not refresh lease", e)
-                    delay(5000)
-                }
-                delay((ttl - 1) * 1000) // Renew the lease 1 second before it expires
-            }
-        }
-    }
-
-    private fun watch(leader: Boolean) {
-        watchJob?.cancel()
-        watchJob = coroutineScope.launch {
-            delay(1000)
-            log.debug("Watching for changes. Leader? $leader")
-
-            var running = true
-            while (running) {
-                try {
-                    val watch = Watch.createWatch<V1Lease>(
-                        coordinationApi.apiClient, coordinationApi.listNamespacedLeaseCall(
-                            namespace,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            true,
-                            null
-                        ), object : TypeToken<Watch.Response<V1Lease>>() {}.type
-                    )
-
-                    watch.use {
-                        for (item in watch) {
-                            if (!isActive) {
-                                return@launch
-                            }
-                            log.trace("Processing ${item.type}: ${item.`object`?.metadata?.name}")
-                            if (item.`object`?.metadata?.name != resourceName) {
-                                continue // Ignore watches that are not ourselves
-                            }
-
-                            when (item.type) {
-                                "ADDED" -> {}
-                                "MODIFIED" -> {
-                                    handleWatchEvent(item.`object`)
-                                }
-
-                                "DELETED" -> {
-                                    log.warn("Lease $resourceName was deleted! Re-starting leader election")
-                                    launch {
-                                        elect()
-                                    }
-                                    running = false
-                                    break
-                                }
-
-                                else -> log.warn("Unknown watch type ${item.type} for ${item.`object`?.metadata?.name}")
-                            }
+    /**
+     * Run the leader election process
+     */
+    suspend fun run() {
+        while (running) {
+            if (isLeader) {
+                // We're already the leader, attempt to renew our lease
+                if (!tryRenew()) {
+                    log.trace("Leadership lost")
+                    isLeader = false
+                    // We lost our leadership
+                    onNewLeaderCallbacks.forEach {
+                        coroutineScope.launch {
+                            it(getActualLeader()!!)
                         }
                     }
-                } catch (e: Exception) {
-                    log.error("Error occurred watching, restarting", e)
-                    delay(1000)
+                    onStoppedLeadingCallbacks.forEach {
+                        coroutineScope.launch {
+                            it()
+                        }
+                    }
+                }
+            } else {
+                tryAcquire()
+                isLeader = true
+                onNewLeaderCallbacks.forEach {
+                    coroutineScope.launch {
+                        it(getActualLeader()!!)
+                    }
+                }
+                onStartLeadingCallbacks.forEach {
+                    coroutineScope.launch {
+                        it()
+                    }
                 }
             }
-            log.debug("Watch stopping...")
+            delay(jitter(retryPeriod * 1000))
         }
     }
 
-    private fun handleWatchEvent(newObject: V1Lease) {
-        // Check if we've been demoted
-        if (state == State.LEADER) {
-            if (newObject.spec?.holderIdentity != nodeName) {
-                log.debug("Demoted from watch, switching to follow")
-                onFollow()
-                state = State.FOLLOWER
-                return
+    /**
+     * Attempt to acquire the lock
+     */
+    private suspend fun tryAcquire() {
+        log.trace("Attempting to acquire lease")
+        while (running) {
+            val now = OffsetDateTime.now(ZoneId.of("UTC")).truncatedTo(ChronoUnit.MICROS)
+            val current = getLease()
+            if (current == null) {
+                log.trace("Current lease does not exist, creating")
+                // Lease doesn't exist, create it
+                val newLease = V1Lease().apply {
+                    metadata = V1ObjectMeta().apply {
+                        name = resourceName
+                        namespace = namespace
+                    }
+                    spec = V1LeaseSpec().apply {
+                        holderIdentity = identifier
+                        leaseDurationSeconds = leaseDuration.toInt()
+                        renewTime = now
+                        acquireTime = now
+                    }
+                }
+                withContext(Dispatchers.IO) {
+                    api.createNamespacedLease(namespace, newLease, null, null, null, null)
+                }
+                log.debug("Created and acquired lease")
+                return // Acquired
+            } else {
+                // Lease exists
+                if (isValid(current)) {
+                    // Lease is valid, check if we own it
+                    if (current.spec?.holderIdentity == identifier) {
+                        return // We own the lease
+                    } else {
+                        log.trace("lease is owned by someone else: ${current.spec?.holderIdentity}")
+                        delayUntilTime(getEndTime(current))
+                    }
+                } else {
+                    // Lease is invalid, take ownership
+                    current.spec!!.apply {
+                        renewTime = now
+                        holderIdentity = identifier
+                        acquireTime = now
+                        leaseDurationSeconds = leaseDuration.toInt()
+                        leaseTransitions = (current.spec?.leaseTransitions ?: 0) + 1
+                    }
+                    withContext(Dispatchers.IO) {
+                        api.replaceNamespacedLease(
+                            current.metadata!!.name,
+                            current.metadata!!.namespace,
+                            current,
+                            null,
+                            null,
+                            null,
+                            null
+                        )
+                    }
+                    log.debug("Acquired stale lease")
+                    return
+                }
             }
+            delay(jitter(retryPeriod * 1000))
         }
-        if (state == State.FOLLOWER) {
-            // Check if we've been promoted
-            if (newObject.spec?.holderIdentity == nodeName) {
-                log.debug("Promoted from watch, switching to leader")
-                onLead()
-                state = State.LEADER
-                return
-            }
+    }
 
-            // Refresh our election schedule
-            val expiresAt = newObject.spec?.renewTime?.plusSeconds(
-                newObject.spec?.leaseDurationSeconds?.toLong() ?: 0L
+    private suspend fun tryRenew(): Boolean {
+        val now = OffsetDateTime.now(ZoneId.of("UTC"))
+        var existingLease = getLease() ?: error("Invariant: Can't renew a lease that doesn't exist")
+
+        if (existingLease.spec?.holderIdentity != identifier) {
+            log.trace("Lease has been acquired by someone else, aborting")
+            // We've lost leadership, abort
+            return false
+        }
+
+        val renewAt = getRefreshTime(existingLease)
+        log.trace("Renewing at {}", now)
+        delayUntilTime(renewAt)
+
+        existingLease = getLease() ?: return false
+
+        existingLease.spec!!.renewTime = OffsetDateTime.now(ZoneId.of("UTC"))
+        withContext(Dispatchers.IO) {
+            api.replaceNamespacedLease(
+                existingLease.metadata!!.name,
+                existingLease.metadata!!.namespace,
+                existingLease,
+                null,
+                null,
+                null,
+                null
             )
         }
+        log.trace("Lease renewed to {}", existingLease.spec!!.renewTime)
+        return true
     }
 
-    private fun launchElectionTimer(expires: OffsetDateTime) {
-        followerElectionJob?.cancel()
-        followerElectionJob = coroutineScope.launch {
-            val waitTime = expires.toEpochSecond() - OffsetDateTime.now().toEpochSecond() + 1
-            log.debug("Scheduling election in $waitTime seconds")
-            delay(waitTime * 1000)
-            log.debug("Starting leader election")
-            elect()
+    private suspend fun getLease(): V1Lease? {
+        return withContext(Dispatchers.IO) {
+            try {
+                api.readNamespacedLease(resourceName, namespace, null)
+            } catch (e: ApiException) {
+                if (e.code == 404) {
+                    null
+                } else {
+                    throw e
+                }
+            }
         }
     }
 
-    private fun reset() {
-        followerElectionJob?.cancel()
-        watchJob?.cancel()
-        refreshTtlJob?.cancel()
-        followerElectionJob = null
-        watchJob = null
-        refreshTtlJob = null
+    private fun isValid(lease: V1Lease): Boolean {
+        val timestamp = lease.spec?.renewTime ?: OffsetDateTime.now(ZoneId.of("UTC"))
+        val expiresAt = timestamp.plusSeconds(lease.spec?.leaseDurationSeconds?.toLong() ?: 0L)
+        val now = OffsetDateTime.now(ZoneId.of("UTC"))
+        log.trace("Lease expires at {}, now: {}", expiresAt, now)
+        return timestamp.plusSeconds(lease.spec?.leaseDurationSeconds?.toLong() ?: 0L).isAfter(
+            OffsetDateTime.now(ZoneId.of("UTC"))
+        )
     }
 
-    private fun buildReplaceOp(path: String, value: String): String {
-        return "{\"op\": \"replace\", \"path\": \"$path\", \"value\":\"$value\"}"
+    private fun jitter(time: Long): Long {
+        return time + random.nextLong(time, (time * 1.5).toLong())
     }
 
-    private fun makePatch(vararg ops: String): String {
-        return "[${ops.joinToString(",")}]"
+    private suspend fun getActualLeader(): String? {
+        return getLease()?.spec?.holderIdentity
     }
 
+    private fun getEndTime(lease: V1Lease): OffsetDateTime {
+        val seconds = lease.spec?.leaseDurationSeconds
+            ?: error("Invariant: Cannot get the end time of a lease with no duration")
+        return lease.spec?.renewTime?.plusSeconds(seconds.toLong())
+            ?: error("Invariant: Cannot get the end time of a lease with no renew time")
+    }
+
+    private fun getRefreshTime(lease: V1Lease): OffsetDateTime {
+        return lease.spec?.renewTime?.plusSeconds(renewDeadline)
+            ?: error("Invariant: Cannot get the end time of a lease with no renew time")
+    }
+
+    private suspend fun delayUntilTime(time: OffsetDateTime) {
+        val delayMs = time.toInstant().toEpochMilli() - System.currentTimeMillis()
+        log.trace("Waiting {}ms until {}", delayMs, time)
+        delay(delayMs)
+    }
 }

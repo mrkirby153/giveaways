@@ -25,23 +25,23 @@ fun main() {
 
     Configuration.setDefaultApiClient(client)
     (LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as? Logger)?.level = Level.TRACE
+
     val node = generateUlid()
     log.info("Starting as $node")
     val election = LeaderElection("giveaways-coordinator", node)
-    election.onDemote {
-        log.info("$node demoted :(")
+    election.onNewLeader {
+        log.info("New leader: $it")
     }
-    election.onBecomeLeader {
-        log.info("$node become leader")
+    election.onStartLeading {
+        log.info("Lock acquired")
     }
-
-    election.init()
-
+    election.onStoppedLeading {
+        log.info("Stopped leading")
+    }
     runBlocking {
         launch {
-            while (true) {
-                delay(1000) // Keep running
-            }
+            election.run()
+            println("Election ended")
         }
     }
 }
