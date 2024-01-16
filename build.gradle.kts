@@ -50,7 +50,8 @@ dependencies {
     implementation("com.mrkirby153:interaction-menus:1.0-SNAPSHOT")
     implementation("net.dv8tion:JDA:5.0.0-beta.3")
 
-    implementation("me.mrkirby153:KirbyUtils-Common:3.4-SNAPSHOT")
+    implementation("me.mrkirby153:KirbyUtils-Common:7.0-SNAPSHOT")
+    implementation("io.kubernetes:client-java:15.0.1")
 
 
     testImplementation("org.springframework.boot:spring-boot-starter-test") {
