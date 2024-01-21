@@ -167,7 +167,7 @@ class GiveawayManager(
             return // We are not responsible for ending giveaways
         }
         val runAt =
-            runTimestamp ?: giveawayRepository.getNextEnds()?.endsAt?.time
+            runTimestamp ?: giveawayRepository.getNextEnds().firstOrNull()?.endsAt?.time
         synchronized(endLock) {
             if (this.nextRunAt != null && runAt != null) {
                 if (runAt > this.nextRunAt!!) {
