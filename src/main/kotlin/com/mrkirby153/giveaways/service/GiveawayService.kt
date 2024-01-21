@@ -10,6 +10,7 @@ import com.mrkirby153.giveaways.jpa.GiveawayEntity
 import com.mrkirby153.giveaways.jpa.GiveawayRepository
 import com.mrkirby153.giveaways.jpa.GiveawayState
 import com.mrkirby153.giveaways.utils.log
+import jakarta.persistence.EntityNotFoundException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import me.mrkirby153.kcutils.Time
@@ -25,7 +26,6 @@ import java.sql.Timestamp
 import java.time.Instant
 import java.util.concurrent.ScheduledFuture
 import java.util.regex.Pattern
-import javax.persistence.EntityNotFoundException
 
 interface GiveawayService {
 

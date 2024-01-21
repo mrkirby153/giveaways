@@ -2,19 +2,19 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.util.Properties
 
 plugins {
-    id("org.springframework.boot") version "2.7.1"
-    id("io.spring.dependency-management") version "1.0.11.RELEASE"
-    kotlin("jvm") version "1.7.10"
-    kotlin("plugin.spring") version "1.7.10"
-    kotlin("plugin.jpa") version "1.7.10"
-    kotlin("plugin.serialization") version "1.7.10"
-    kotlin("plugin.allopen") version "1.7.10"
-    id("org.flywaydb.flyway") version "8.3.0"
+    id("org.springframework.boot") version "3.1.7"
+    id("io.spring.dependency-management") version "1.1.4"
+    kotlin("jvm") version "1.9.22"
+    kotlin("plugin.spring") version "1.9.22"
+    kotlin("plugin.jpa") version "1.9.22"
+    kotlin("plugin.serialization") version "1.9.22"
+    kotlin("plugin.allopen") version "1.9.22"
+    id("org.flywaydb.flyway") version "10.6.0"
 }
 
 group = "com.mrkirby153"
 version = "2.0.0-SNAPSHOT"
-java.sourceCompatibility = JavaVersion.VERSION_17
+java.sourceCompatibility = JavaVersion.VERSION_21
 
 repositories {
     mavenLocal()
@@ -25,7 +25,7 @@ repositories {
 buildscript {
     dependencies {
         // Needed so flyway can pick up mysql
-        classpath("org.flywaydb:flyway-mysql:8.5.13")
+        classpath("org.flywaydb:flyway-mysql:10.6.0")
     }
 }
 
@@ -33,18 +33,17 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-amqp")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
-    implementation("org.springframework.boot:spring-boot-starter-amqp")
 
     implementation("org.flywaydb:flyway-mysql")
     implementation("org.flywaydb:flyway-core")
 
     runtimeOnly("com.h2database:h2")
-    runtimeOnly("mysql:mysql-connector-java")
+    runtimeOnly("mysql:mysql-connector-java:8.0.33")
 
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.4.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1")
 
     implementation("com.mrkirby153:bot-core:5.0-SNAPSHOT")
     implementation("com.mrkirby153:interaction-menus:1.0-SNAPSHOT")
@@ -64,7 +63,7 @@ dependencies {
 tasks.withType<KotlinCompile> {
     kotlinOptions {
         freeCompilerArgs = listOf("-Xjsr305=strict")
-        jvmTarget = "17"
+        jvmTarget = "21"
     }
 }
 

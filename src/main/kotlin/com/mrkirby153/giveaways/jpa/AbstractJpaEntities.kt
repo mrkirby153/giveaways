@@ -1,10 +1,10 @@
 package com.mrkirby153.giveaways.jpa
 
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.Id
+import jakarta.persistence.MappedSuperclass
 import org.springframework.data.util.ProxyUtils
 import java.io.Serializable
-import javax.persistence.GeneratedValue
-import javax.persistence.Id
-import javax.persistence.MappedSuperclass
 
 @MappedSuperclass
 abstract class AutoIncrementingJpaEntity<T : Serializable> {
