@@ -1,7 +1,9 @@
 package com.mrkirby153.giveaways.service
 
 import com.mrkirby153.botcore.coroutine.await
-import com.mrkirby153.botcore.spring.event.BotReadyEvent
+import com.mrkirby153.giveaways.config.LeaderChangeEvent
+import com.mrkirby153.giveaways.config.LeadershipAcquiredEvent
+import com.mrkirby153.giveaways.config.LeadershipLostEvent
 import com.mrkirby153.giveaways.events.GiveawayEndingEvent
 import com.mrkirby153.giveaways.events.GiveawayStartedEvent
 import com.mrkirby153.giveaways.jpa.GiveawayEntity
@@ -80,6 +82,12 @@ class GiveawayManager(
     private var endTask: ScheduledFuture<*>? = null
     private var nextRunAt: Long? = null
 
+    /**
+     * If this instance is the end task leader
+     */
+    private var isLeader = false
+    private var currentLeader: String? = null
+
     override suspend fun start(
         channel: TextChannel,
         name: String,
@@ -152,9 +160,14 @@ class GiveawayManager(
     }
 
     private fun scheduleNextEndsAt(
-        runAt: Long? = giveawayRepository.getNextEnds(shardManager.guildCache.map { it.id }
-            .toList()).firstOrNull()?.endsAt?.time
+        runTimestamp: Long? = null
     ) {
+        if (!isLeader) {
+            log.trace("Ignoring request to schedule next end at, as we are not the leader. Current Leader: $currentLeader")
+            return // We are not responsible for ending giveaways
+        }
+        val runAt =
+            runTimestamp ?: giveawayRepository.getNextEnds()?.endsAt?.time
         synchronized(endLock) {
             if (this.nextRunAt != null && runAt != null) {
                 if (runAt > this.nextRunAt!!) {
@@ -185,6 +198,10 @@ class GiveawayManager(
     }
 
     private fun endAllGiveaways() {
+        if (!isLeader) {
+            log.warn("endAllGiveaways called while not leader. Current leader: $currentLeader")
+            return
+        }
         log.debug("Ending all giveaways")
         synchronized(endLock) {
             try {
@@ -211,10 +228,28 @@ class GiveawayManager(
     @EventListener
     fun onGiveawayStart(event: GiveawayStartedEvent) {
         scheduleNextEndsAt(event.giveaway.endsAt.time)
+        // TODO: Broadcast this to the leader
     }
 
     @EventListener
-    fun onReady(event: BotReadyEvent) {
+    fun onBecomeLeader(event: LeadershipAcquiredEvent) {
+        log.trace("Acquired leadership")
+        this.isLeader = true
         scheduleNextEndsAt()
+    }
+
+    @EventListener
+    fun onLostLeader(event: LeadershipLostEvent) {
+        log.trace("Lost leadership")
+        this.isLeader = false
+        this.nextRunAt = null
+        if (this.endTask?.isDone == false)
+            this.endTask?.cancel(true)
+    }
+
+    @EventListener
+    fun onLeadershipChange(event: LeaderChangeEvent) {
+        log.trace("New leader: ${event.newLeader}")
+        this.currentLeader = event.newLeader
     }
 }

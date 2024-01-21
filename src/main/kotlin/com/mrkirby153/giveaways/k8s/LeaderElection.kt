@@ -1,6 +1,7 @@
 package com.mrkirby153.giveaways.k8s
 
 import com.mrkirby153.botcore.utils.SLF4J
+import io.kubernetes.client.openapi.ApiClient
 import io.kubernetes.client.openapi.ApiException
 import io.kubernetes.client.openapi.apis.CoordinationV1Api
 import io.kubernetes.client.openapi.models.V1Lease
@@ -50,10 +51,15 @@ class LeaderElection(
      * The delay between actions
      */
     private val retryPeriod: Long = 2,
+
+    /**
+     * The API client to use. If not specified, the default one will be used
+     */
+    apiClient: ApiClient? = null
 ) {
     private val log by SLF4J
 
-    private val api = CoordinationV1Api()
+    private val api = if (apiClient != null) CoordinationV1Api(apiClient) else CoordinationV1Api()
 
     /**
      * Callbacks executed when this node starts leading
@@ -73,6 +79,11 @@ class LeaderElection(
     private var running = true
 
     private var isLeader = false
+
+    init {
+        check(identifier.isNotEmpty()) { "Identifier must be specified" }
+        log.info("Created LeaderElection $namespace/$resourceName and identifier $identifier")
+    }
 
     /**
      * A [callback] executed when this node starts leading
@@ -150,7 +161,7 @@ class LeaderElection(
                 val newLease = V1Lease().apply {
                     metadata = V1ObjectMeta().apply {
                         name = resourceName
-                        namespace = namespace
+                        namespace = this@LeaderElection.namespace
                     }
                     spec = V1LeaseSpec().apply {
                         holderIdentity = identifier
@@ -160,7 +171,13 @@ class LeaderElection(
                     }
                 }
                 withContext(Dispatchers.IO) {
-                    api.createNamespacedLease(namespace, newLease, null, null, null, null)
+                    try {
+                        log.trace("Creating {}/{}", namespace, newLease)
+                        api.createNamespacedLease(namespace, newLease, null, null, null, null)
+                    } catch (e: Exception) {
+                        log.error("Could not create lease: $namespace/$newLease", e)
+                        throw e
+                    }
                 }
                 log.debug("Created and acquired lease")
                 return // Acquired
