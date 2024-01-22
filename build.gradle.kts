@@ -43,7 +43,8 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:1.6.4")
 
     implementation("com.mrkirby153:bot-core:7.1-SNAPSHOT")
     implementation("com.mrkirby153:interaction-menus:2.0-SNAPSHOT")
@@ -52,7 +53,7 @@ dependencies {
     implementation("me.mrkirby153:KirbyUtils-Common:7.0-SNAPSHOT")
     implementation("me.mrkirby153:KirbyUtils-Spring:7.0-SNAPSHOT")
     implementation("io.kubernetes:client-java:15.0.1")
-
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test") {
         exclude(module = "mockito-core")
