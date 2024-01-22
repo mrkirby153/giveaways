@@ -32,4 +32,6 @@ class GiveawayEntrantEntity(
 interface EntrantRepository : JpaRepository<GiveawayEntrantEntity, Long> {
 
     fun existsByGiveawayAndUserId(giveaway: GiveawayEntity, userId: String): Boolean
+
+    fun getAllByGiveaway(giveaway: GiveawayEntity): List<GiveawayEntrantEntity>
 }

@@ -3,21 +3,31 @@ package com.mrkirby153.giveaways.service
 import com.mrkirby153.botcore.builder.ActionRowBuilder
 import com.mrkirby153.botcore.builder.MessageBuilder
 import com.mrkirby153.botcore.builder.message
-import com.mrkirby153.giveaways.events.GiveawayEndingEvent
+import com.mrkirby153.botcore.coroutine.await
 import com.mrkirby153.giveaways.jpa.GiveawayEntity
 import com.mrkirby153.giveaways.jpa.GiveawayState
 import com.mrkirby153.giveaways.utils.pluralize
+import jakarta.transaction.Transactional
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import net.dv8tion.jda.api.entities.Message
+import net.dv8tion.jda.api.exceptions.ErrorResponseException
+import net.dv8tion.jda.api.exceptions.InsufficientPermissionException
 import net.dv8tion.jda.api.interactions.components.buttons.ButtonStyle
 import net.dv8tion.jda.api.sharding.ShardManager
-import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Service
 import java.awt.Color
 
 interface GiveawayMessageService {
     fun render(giveawayEntity: GiveawayEntity): MessageBuilder
+
+    suspend fun getMessage(giveawayEntity: GiveawayEntity): Message?
+
+    suspend fun updateMessage(giveawayEntity: GiveawayEntity)
 }
 
 @Service
+@Transactional
 class GiveawayMessageManager(
     private val shardManager: ShardManager
 ) : GiveawayMessageService {
@@ -30,14 +40,22 @@ class GiveawayMessageManager(
         }
     }
 
-    @EventListener
-    fun onEnding(event: GiveawayEndingEvent) {
-        val giveaway = event.giveaway
-        val guild = shardManager.getGuildById(giveaway.guildId) ?: return
-        val channel = guild.getTextChannelById(giveaway.channelId) ?: return
-        channel.retrieveMessageById(giveaway.messageId).queue { msg ->
-            msg.editMessage(render(event.giveaway).edit()).queue()
+    override suspend fun getMessage(giveawayEntity: GiveawayEntity): Message? {
+        val guild = shardManager.getGuildById(giveawayEntity.guildId) ?: return null
+        val channel = guild.getTextChannelById(giveawayEntity.channelId) ?: return null
+        return try {
+            channel.retrieveMessageById(giveawayEntity.messageId).await()
+        } catch (e: ErrorResponseException) {
+            null
+        } catch (e: InsufficientPermissionException) {
+            null
         }
+    }
+
+    override suspend fun updateMessage(giveawayEntity: GiveawayEntity) {
+        getMessage(giveawayEntity)?.editMessage(withContext(Dispatchers.IO) {
+            render(giveawayEntity).edit()
+        })?.await()
     }
 
     private fun renderRunning(entity: GiveawayEntity): MessageBuilder = message {
@@ -71,10 +89,15 @@ class GiveawayMessageManager(
                 color = Color.RED
             }
             description = buildString {
+                appendLine("**${entity.name}**")
+                appendLine()
                 appendLine("Giveaway has ended!")
+                appendLine()
+                appendLine("Ended: <t:${entity.endsAt.time / 1000}:f>")
+                appendLine()
                 if (entity.getWinners().isEmpty()) {
                     appendLine()
-                    appendLine("Could not determine a winner")
+                    appendLine("Nobody won the giveaway")
                 } else {
                     val winnersAsMention = entity.getWinners().map { "<@!${it}>" }.toMutableList()
                     val iterator = winnersAsMention.iterator()

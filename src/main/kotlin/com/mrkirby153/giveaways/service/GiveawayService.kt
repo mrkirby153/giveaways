@@ -4,26 +4,34 @@ import com.mrkirby153.botcore.coroutine.await
 import com.mrkirby153.giveaways.config.LeaderChangeEvent
 import com.mrkirby153.giveaways.config.LeadershipAcquiredEvent
 import com.mrkirby153.giveaways.config.LeadershipLostEvent
-import com.mrkirby153.giveaways.events.GiveawayEndingEvent
+import com.mrkirby153.giveaways.events.GiveawayEndedEvent
 import com.mrkirby153.giveaways.events.GiveawayStartedEvent
+import com.mrkirby153.giveaways.jpa.EntrantRepository
 import com.mrkirby153.giveaways.jpa.GiveawayEntity
 import com.mrkirby153.giveaways.jpa.GiveawayRepository
 import com.mrkirby153.giveaways.jpa.GiveawayState
 import com.mrkirby153.giveaways.utils.log
 import jakarta.persistence.EntityNotFoundException
+import jakarta.transaction.Transactional
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.mrkirby153.kcutils.Time
+import me.mrkirby153.kcutils.coroutines.runAsync
+import me.mrkirby153.kcutils.spring.coroutine.transaction
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.entities.User
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel
 import net.dv8tion.jda.api.sharding.ShardManager
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.event.EventListener
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.scheduling.TaskScheduler
 import org.springframework.stereotype.Service
 import java.sql.Timestamp
 import java.time.Instant
+import java.util.Random
 import java.util.concurrent.ScheduledFuture
 import java.util.regex.Pattern
 
@@ -64,6 +72,12 @@ interface GiveawayService {
      * Gets a list of all giveaways that are running on all shards in the current process
      */
     fun getAllGiveawaysForCurrentProcess(vararg state: GiveawayState): List<GiveawayEntity>
+
+    fun getWinners(
+        giveaway: GiveawayEntity,
+        count: Int = 1,
+        exclude: List<String>? = emptyList()
+    ): Set<String>
 }
 
 private val snowflakeRegex = Pattern.compile("\\d{17,20}")
@@ -72,10 +86,14 @@ private val snowflakeRegex = Pattern.compile("\\d{17,20}")
 class GiveawayManager(
     private val shardManager: ShardManager,
     private val giveawayRepository: GiveawayRepository,
+    private val giveawayEntrantRepository: EntrantRepository,
     private val giveawayMessageService: GiveawayMessageService,
     private val eventPublisher: ApplicationEventPublisher,
-    private val taskScheduler: TaskScheduler
+    private val taskScheduler: TaskScheduler,
+    private val amqpService: AmqpService
 ) : GiveawayService {
+
+    private final val random: Random = Random()
 
     private final val endLock = Any()
 
@@ -121,7 +139,15 @@ class GiveawayManager(
         entity = withContext(Dispatchers.IO) {
             giveawayRepository.save(entity)
         }
-        eventPublisher.publishEvent(GiveawayStartedEvent(entity))
+        entity.id?.let {
+            log.trace("Sending GiveawayStarted to current leader: ${this.currentLeader}")
+            val leader = currentLeader
+            if (leader == null) {
+                log.warn("No leader established. Dropping start event for $entity")
+                return@let
+            }
+            amqpService.send(AmqpMessage.GiveawayStarted(it), leader)
+        }
         return entity
     }
 
@@ -129,7 +155,7 @@ class GiveawayManager(
         log.debug("Ending giveaway {}", entity)
         entity.state = GiveawayState.ENDING
         val newEntity = giveawayRepository.save(entity)
-        eventPublisher.publishEvent(GiveawayEndingEvent(newEntity))
+        amqpService.broadcast(AmqpMessage.GiveawayEnded(newEntity.id!!))
     }
 
     override fun lookupByMessageId(messageId: String): GiveawayEntity? =
@@ -155,8 +181,33 @@ class GiveawayManager(
         val guilds = shardManager.guildCache.map { it.id }.toList()
         return giveawayRepository.getAllByGuildIdInAndStateIn(
             guilds,
-            (if (state.isEmpty()) GiveawayState.values() else state).toList()
+            (if (state.isEmpty()) GiveawayState.entries.toTypedArray() else state).toList()
         )
+    }
+
+    override fun getWinners(
+        giveaway: GiveawayEntity,
+        count: Int,
+        exclude: List<String>?
+    ): Set<String> {
+        log.trace("Determining {} winners for {}, excluding {}", count, giveaway, exclude)
+        val entrants = giveawayEntrantRepository.getAllByGiveaway(giveaway)
+        val winners = mutableSetOf<String>()
+        while (winners.size < count && winners.size < entrants.size) {
+            val candidate = entrants[random.nextInt(entrants.size)].userId
+            log.trace("Candidate: {}", candidate)
+            // Here's where other checks would go
+            if (candidate in winners) {
+                log.trace("Excluding {} as they are already a winner", candidate)
+                continue
+            }
+            log.trace("{} is a valid winner", candidate)
+            winners.add(candidate)
+        }
+        if (winners.size < count) {
+            log.trace("Returning partial winners, as there were not enough entrants")
+        }
+        return winners.toSet()
     }
 
     private fun scheduleNextEndsAt(
@@ -224,11 +275,46 @@ class GiveawayManager(
         }
     }
 
+    private fun announceWinners(giveaway: GiveawayEntity) {
+
+    }
+
 
     @EventListener
     fun onGiveawayStart(event: GiveawayStartedEvent) {
-        scheduleNextEndsAt(event.giveaway.endsAt.time)
-        // TODO: Broadcast this to the leader
+        val giveaway =
+            event.giveaway ?: giveawayRepository.findByIdOrNull(event.giveawayId) ?: return
+        scheduleNextEndsAt(giveaway.endsAt.time)
+    }
+
+    @EventListener
+    @Transactional
+    fun onGiveawayEnd(event: GiveawayEndedEvent) {
+        runAsync {
+            withContext(Dispatchers.IO) {
+                transaction {
+                    val endingGiveaway =
+                        giveawayRepository.findByIdOrNull(event.giveawayId) ?: return@transaction
+                    log.debug("Ending giveaway {}", endingGiveaway)
+                    endingGiveaway.state = GiveawayState.ENDING
+                    val job = launch {
+                        // Only update the message if it takes longer than 5 seconds
+                        delay(5000)
+                        giveawayMessageService.updateMessage(endingGiveaway)
+                    }
+
+                    val winners = getWinners(endingGiveaway, endingGiveaway.winners)
+                    log.debug("Winners for {}: {}", endingGiveaway, winners)
+                    endingGiveaway.setWinners(winners.toTypedArray())
+                    endingGiveaway.state = GiveawayState.ENDED
+                    if (job.isActive)
+                        job.cancel()
+                    giveawayMessageService.updateMessage(endingGiveaway)
+
+                    giveawayRepository.save(endingGiveaway)
+                }
+            }
+        }.join()
     }
 
     @EventListener

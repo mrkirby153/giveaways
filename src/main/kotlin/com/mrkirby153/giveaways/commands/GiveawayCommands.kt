@@ -13,8 +13,6 @@ import com.mrkirby153.giveaways.jpa.GiveawayRepository
 import com.mrkirby153.giveaways.jpa.GiveawayState
 import com.mrkirby153.giveaways.service.AmqpService
 import com.mrkirby153.giveaways.service.GiveawayService
-import com.mrkirby153.giveaways.service.TestRequest
-import com.mrkirby153.giveaways.service.rpc
 import com.mrkirby153.giveaways.utils.canSee
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel
 import org.springframework.stereotype.Component
@@ -93,14 +91,6 @@ class GiveawayCommands(
                     reply(true) {
                         content = "Ended the giveaway ${giveaway().name}"
                     }.await()
-                }
-            }
-
-            slashCommand("test") {
-                run {
-                    val hook = deferReply().await()
-                    val resp = amqpService.rpc(TestRequest(4, 16), "aus-box")
-                    hook.editOriginal("Ok: $resp").await()
                 }
             }
         }

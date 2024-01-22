@@ -4,7 +4,7 @@ import com.mrkirby153.botcore.coroutine.CoroutineEventListener
 import com.mrkirby153.botcore.coroutine.await
 import com.mrkirby153.botcore.spring.event.BotReadyEvent
 import com.mrkirby153.botcore.utils.SLF4J
-import com.mrkirby153.giveaways.events.GiveawayEndingEvent
+import com.mrkirby153.giveaways.events.GiveawayEndedEvent
 import com.mrkirby153.giveaways.events.GiveawayStartedEvent
 import com.mrkirby153.giveaways.jpa.EntrantRepository
 import com.mrkirby153.giveaways.jpa.GiveawayEntity
@@ -20,6 +20,7 @@ import net.dv8tion.jda.api.entities.User
 import net.dv8tion.jda.api.events.GenericEvent
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent
 import org.springframework.context.event.EventListener
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import java.util.concurrent.CopyOnWriteArraySet
 import kotlin.time.DurationUnit
@@ -80,14 +81,18 @@ class GiveawayEntrantManager(
 
     @EventListener
     fun onGiveawayStart(event: GiveawayStartedEvent) {
-        log.debug("Caching interaction {}", event.giveaway.interactionUuid)
-        loadedButtons.add(event.giveaway.interactionUuid)
+        val giveaway =
+            event.giveaway ?: giveawayRepository.findByIdOrNull(event.giveawayId) ?: return
+        log.debug("Caching interaction {}", giveaway)
+        loadedButtons.add(giveaway.interactionUuid)
     }
 
     @EventListener
-    fun onGiveawayEnd(event: GiveawayEndingEvent) {
-        log.debug("Uncaching interaction {}", event.giveaway.interactionUuid)
-        loadedButtons.remove(event.giveaway.interactionUuid)
+    fun onGiveawayEnd(event: GiveawayEndedEvent) {
+        val giveaway =
+            event.giveaway ?: giveawayRepository.findByIdOrNull(event.giveawayId) ?: return
+        log.debug("Uncaching interaction {}", giveaway)
+        loadedButtons.remove(giveaway.interactionUuid)
     }
 
     override suspend fun onEvent(event: GenericEvent) {

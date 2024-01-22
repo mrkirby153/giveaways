@@ -1,5 +1,6 @@
 package com.mrkirby153.giveaways
 
+import me.mrkirby153.kcutils.spring.coroutine.config.EnableTransactionalCoroutines
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing
@@ -12,6 +13,7 @@ import org.springframework.scheduling.annotation.EnableScheduling
 @EnableAsync
 @EnableScheduling
 @SpringBootApplication
+@EnableTransactionalCoroutines
 class GiveawaysApplication
 
 fun main(args: Array<String>) {
