@@ -28,9 +28,9 @@ interface OauthService {
 
 @Serializable
 data class OAuthTokenResponse(
-    @SerialName("authorization_code")
+    @SerialName("access_token")
     val accessToken: String,
-    @SerialName("token_Type")
+    @SerialName("token_type")
     val tokenType: String,
     @SerialName("expires_in")
     val expiresIn: Int,
@@ -76,6 +76,7 @@ class OAuthManager(
         redirectUri: String,
         authorizationCode: String
     ): OAuthTokenResponse {
+        log.debug("Performing oauth with redirect uri $redirectUri and authorization code $authorizationCode")
         val formBody =
             FormBody.Builder().add("client_id", clientId).add("client_secret", clientSecret)
                 .add("grant_type", "authorization_code").add("code", authorizationCode)
@@ -86,7 +87,7 @@ class OAuthManager(
         val resp = client.newCall(req).executeAsync()
         if (!resp.isSuccessful) {
             resp.body.use {
-                log.debug("Received unsuccessful code: {} {}", resp.code, it)
+                log.debug("Received unsuccessful code: {} {}", resp.code, it?.string())
                 throw IllegalStateException("Bad Request")
             }
         } else {
