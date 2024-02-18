@@ -1,5 +1,6 @@
 package com.mrkirby153.giveaways.service
 
+import com.mrkirby153.botcore.builder.message
 import com.mrkirby153.botcore.coroutine.await
 import com.mrkirby153.giveaways.config.LeaderChangeEvent
 import com.mrkirby153.giveaways.config.LeadershipAcquiredEvent
@@ -16,14 +17,18 @@ import jakarta.transaction.Transactional
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import me.mrkirby153.kcutils.Time
 import me.mrkirby153.kcutils.coroutines.runAsync
 import me.mrkirby153.kcutils.spring.coroutine.jpa.ThreadSafeJpaReference
 import me.mrkirby153.kcutils.spring.coroutine.transaction
 import net.dv8tion.jda.api.Permission
+import net.dv8tion.jda.api.entities.Message
 import net.dv8tion.jda.api.entities.User
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel
+import net.dv8tion.jda.api.exceptions.ErrorResponseException
+import net.dv8tion.jda.api.requests.ErrorResponse
 import net.dv8tion.jda.api.sharding.ShardManager
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.event.EventListener
@@ -33,6 +38,7 @@ import org.springframework.stereotype.Service
 import java.sql.Timestamp
 import java.time.Instant
 import java.util.Random
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ScheduledFuture
 import java.util.regex.Pattern
 
@@ -87,6 +93,8 @@ interface GiveawayService {
     ): List<String>
 
     fun rerollGiveaway(giveaway: GiveawayEntity, toReroll: List<String>): List<String>
+
+    fun announceWinners(giveaway: GiveawayEntity, winners: List<String>): CompletableFuture<Void>
 }
 
 private val snowflakeRegex = Pattern.compile("\\d{17,20}")
@@ -212,7 +220,7 @@ class GiveawayManager(
                 continue
             }
             if (exclude != null) {
-                if(candidate in exclude) {
+                if (candidate in exclude) {
                     log.trace("Excluding {} as they are excluded", candidate)
                     continue
                 }
@@ -232,6 +240,7 @@ class GiveawayManager(
         toReroll: List<String>
     ): List<String> {
         val g = giveaway.get()!!
+        val oldWinners = g.getWinners()
         val newWinners = getWinners(
             g,
             g.winners,
@@ -240,15 +249,91 @@ class GiveawayManager(
         g.setWinners(newWinners.toTypedArray())
         log.trace("new winners: {}", newWinners)
         giveawayRepository.save(g)
-
-        // TODO: Announce the new winners
-
+        val toAnnounce = newWinners - oldWinners.toSet()
+        announceWinners(g, toAnnounce.toList())
+        runBlocking {
+            giveawayMessageService.updateMessage(g)
+        }
         return newWinners.toList()
     }
 
     @Transactional
     override fun rerollGiveaway(giveaway: GiveawayEntity, toReroll: List<String>): List<String> {
         return rerollGiveaway(ThreadSafeJpaReference(giveawayRepository, giveaway.id!!), toReroll)
+    }
+
+    override fun announceWinners(
+        giveaway: GiveawayEntity,
+        winners: List<String>
+    ): CompletableFuture<Void> {
+        log.trace("Announcing winners {} for giveaway {}", winners, giveaway)
+        val channel = shardManager.getTextChannelById(giveaway.channelId)
+            ?: return CompletableFuture.failedFuture(IllegalStateException("Channel not found"))
+        check(channel.canTalk()) { "Can't send messages in channel" }
+        val userFutures = mutableMapOf<String, CompletableFuture<User?>>()
+
+        giveaway.getWinners().forEach { userId ->
+            userFutures[userId] =
+                shardManager.retrieveUserById(userId).submit().exceptionally {
+                    if (it is ErrorResponseException) {
+                        if (it.errorResponse == ErrorResponse.UNKNOWN_USER) {
+                            log.trace("User $userId not found")
+                        }
+                    } else {
+                        log.error("Could not retrieve user $userId", it)
+                    }
+                    null
+                }
+        }
+
+        return CompletableFuture.allOf(*userFutures.values.toTypedArray()).thenCompose {
+            val sendMessageFutures = mutableListOf<CompletableFuture<*>>()
+
+            val sentUserIds: MutableList<String> = mutableListOf()
+            val toSend = buildString {
+                append("Congratulations ")
+                winners.forEach { winnerId ->
+                    val toAppend = "<@${winnerId}> "
+                    if (length + toAppend.length > 1990) {
+                        sendMessageFutures.add(channel.sendMessage(message {
+                            content = this@buildString.toString()
+                            allowMention(Message.MentionType.USER)
+                            sentUserIds.forEach { id ->
+                                userFutures[id]?.apply {
+                                    get()?.apply { mention(this) }
+                                }
+                            }
+
+                        }.create()).submit())
+                        this.clear()
+                        sentUserIds.clear()
+                        append(toAppend)
+                        sentUserIds.add(winnerId)
+                    } else {
+                        append(toAppend)
+                        sentUserIds.add(winnerId)
+                    }
+                    append("! You won **${giveaway.name}**")
+                }
+            }
+            if (toSend.isNotEmpty()) {
+                sendMessageFutures.add(channel.sendMessage(message {
+                    content = toSend
+                    allowMention(Message.MentionType.USER)
+                    sentUserIds.forEach { id ->
+                        userFutures[id]?.apply {
+                            get()?.apply { mention(this) }
+                        }
+                    }
+                }.create()).submit())
+            }
+
+            if (sendMessageFutures.isEmpty()) {
+                CompletableFuture.completedFuture(null)
+            } else {
+                CompletableFuture.allOf(*sendMessageFutures.toTypedArray())
+            }
+        }
     }
 
     private fun scheduleNextEndsAt(
@@ -316,10 +401,6 @@ class GiveawayManager(
         }
     }
 
-    private fun announceWinners(giveaway: GiveawayEntity) {
-
-    }
-
 
     @EventListener
     fun onGiveawayStart(event: GiveawayStartedEvent) {
@@ -351,7 +432,7 @@ class GiveawayManager(
                     if (job.isActive)
                         job.cancel()
                     giveawayMessageService.updateMessage(endingGiveaway)
-
+                    announceWinners(endingGiveaway, winners.toList())
                     giveawayRepository.save(endingGiveaway)
                 }
             }
