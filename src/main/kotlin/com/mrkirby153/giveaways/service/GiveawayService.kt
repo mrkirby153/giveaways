@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.mrkirby153.kcutils.Time
 import me.mrkirby153.kcutils.coroutines.runAsync
+import me.mrkirby153.kcutils.spring.coroutine.jpa.ThreadSafeJpaReference
 import me.mrkirby153.kcutils.spring.coroutine.transaction
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.entities.User
@@ -76,8 +77,16 @@ interface GiveawayService {
     fun getWinners(
         giveaway: GiveawayEntity,
         count: Int = 1,
-        exclude: List<String>? = emptyList()
+        exclude: List<String>? = emptyList(),
+        existingWinners: List<String>? = emptyList()
     ): Set<String>
+
+    fun rerollGiveaway(
+        giveaway: ThreadSafeJpaReference<GiveawayEntity, Long>,
+        toReroll: List<String>
+    ): List<String>
+
+    fun rerollGiveaway(giveaway: GiveawayEntity, toReroll: List<String>): List<String>
 }
 
 private val snowflakeRegex = Pattern.compile("\\d{17,20}")
@@ -188,11 +197,12 @@ class GiveawayManager(
     override fun getWinners(
         giveaway: GiveawayEntity,
         count: Int,
-        exclude: List<String>?
+        exclude: List<String>?,
+        existingWinners: List<String>?
     ): Set<String> {
         log.trace("Determining {} winners for {}, excluding {}", count, giveaway, exclude)
         val entrants = giveawayEntrantRepository.getAllByGiveaway(giveaway)
-        val winners = mutableSetOf<String>()
+        val winners = existingWinners?.toMutableSet() ?: mutableSetOf()
         while (winners.size < count && winners.size < entrants.size) {
             val candidate = entrants[random.nextInt(entrants.size)].userId
             log.trace("Candidate: {}", candidate)
@@ -201,6 +211,12 @@ class GiveawayManager(
                 log.trace("Excluding {} as they are already a winner", candidate)
                 continue
             }
+            if (exclude != null) {
+                if(candidate in exclude) {
+                    log.trace("Excluding {} as they are excluded", candidate)
+                    continue
+                }
+            }
             log.trace("{} is a valid winner", candidate)
             winners.add(candidate)
         }
@@ -208,6 +224,31 @@ class GiveawayManager(
             log.trace("Returning partial winners, as there were not enough entrants")
         }
         return winners.toSet()
+    }
+
+    @Transactional
+    override fun rerollGiveaway(
+        giveaway: ThreadSafeJpaReference<GiveawayEntity, Long>,
+        toReroll: List<String>
+    ): List<String> {
+        val g = giveaway.get()!!
+        val newWinners = getWinners(
+            g,
+            g.winners,
+            toReroll,
+            g.getWinners().filter { it !in toReroll })
+        g.setWinners(newWinners.toTypedArray())
+        log.trace("new winners: {}", newWinners)
+        giveawayRepository.save(g)
+
+        // TODO: Announce the new winners
+
+        return newWinners.toList()
+    }
+
+    @Transactional
+    override fun rerollGiveaway(giveaway: GiveawayEntity, toReroll: List<String>): List<String> {
+        return rerollGiveaway(ThreadSafeJpaReference(giveawayRepository, giveaway.id!!), toReroll)
     }
 
     private fun scheduleNextEndsAt(
