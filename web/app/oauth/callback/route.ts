@@ -1,18 +1,31 @@
+import { getErrorResponse } from "@/modules/auth/helpers";
 import { User, signJWT } from "@/modules/auth/oauth";
 import { makeApiRequest } from "@/modules/botApi";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
+function handleError(request: NextRequest, error: string) {
+  switch (error) {
+    case "access_denied":
+      return getErrorResponse(request, "ACCESS_DENIED");
+    default:
+      return getErrorResponse(request, "UNKNOWN_ERROR");
+  }
+}
+
 export async function GET(request: NextRequest) {
   let url = new URL(request.url);
-
   let allCookies = cookies();
-
   let state = allCookies.get("state")?.value;
+
+  if (url.searchParams.get("error")) {
+    return handleError(request, url.searchParams.get("error") as string);
+  }
+
   let receivedState = url.searchParams.get("state");
 
   if (state !== receivedState) {
-    return new Response("Invalid state", { status: 400 });
+    return getErrorResponse(request, "INVALID_STATE");
   }
   let code = url.searchParams.get("code");
   url.searchParams.delete("code");
@@ -31,7 +44,6 @@ export async function GET(request: NextRequest) {
 
   let json = await response.json();
   let token = json.access_token;
-  console.log(json);
 
   response = await fetch("https://discord.com/api/v10/users/@me", {
     headers: {
@@ -39,10 +51,9 @@ export async function GET(request: NextRequest) {
     },
   });
   if (!response.ok) {
-    return new Response("Invalid token", { status: 400 });
+    return getErrorResponse(request, "INVALID_TOKEN");
   }
   let userJson = await response.json();
-  console.log(userJson);
 
   let user: User = {
     id: userJson.id,
