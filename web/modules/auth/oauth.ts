@@ -24,5 +24,6 @@ export const signJWT = async (
     .setProtectedHeader({ alg })
     .setIssuedAt()
     .setExpirationTime(options.exp)
+    .setSubject(payload.sub)
     .sign(secret);
 };
