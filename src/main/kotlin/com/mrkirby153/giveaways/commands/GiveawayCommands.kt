@@ -9,7 +9,6 @@ import com.mrkirby153.botcore.command.slashcommand.dsl.types.string
 import com.mrkirby153.botcore.command.slashcommand.dsl.types.textChannel
 import com.mrkirby153.botcore.command.slashcommand.dsl.types.user
 import com.mrkirby153.botcore.coroutine.await
-import com.mrkirby153.botcore.utils.SLF4J
 import com.mrkirby153.giveaways.jpa.GiveawayEntity
 import com.mrkirby153.giveaways.jpa.GiveawayRepository
 import com.mrkirby153.giveaways.jpa.GiveawayState
@@ -19,6 +18,7 @@ import com.mrkirby153.giveaways.utils.effectiveUsername
 import com.mrkirby153.interactionmenus.Menu
 import com.mrkirby153.interactionmenus.MenuManager
 import com.mrkirby153.interactionmenus.StatefulMenu
+import io.github.oshai.kotlinlogging.KotlinLogging
 import net.dv8tion.jda.api.entities.User
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel
 import net.dv8tion.jda.api.entities.emoji.Emoji
@@ -30,6 +30,7 @@ import org.springframework.stereotype.Component
 import kotlin.math.ceil
 import kotlin.math.min
 
+private val log = KotlinLogging.logger {}
 
 @Component
 class GiveawayCommands(
@@ -38,9 +39,6 @@ class GiveawayCommands(
     private val giveawayRepository: GiveawayRepository,
     private val menuManager: MenuManager
 ) : DslSlashCommandProvider {
-
-
-    private val log by SLF4J
 
     override fun register(executor: DslCommandExecutor) {
         executor.registerCommands {
@@ -148,7 +146,7 @@ class GiveawayCommands(
         val winners: MutableMap<String, User?> = mutableMapOf()
 
         giveaway.getWinners().forEach { id ->
-            log.trace("Retrieving user $id")
+            log.trace { "Retrieving user $id" }
             try {
                 winners[id] = shardManager.retrieveUserById(id).await()
             } catch (e: ErrorResponseException) {
@@ -158,7 +156,7 @@ class GiveawayCommands(
                     throw e
                 }
             }
-            log.trace("Retrieved user {} -> {}", id, winners[id])
+            log.trace { "Retrieved user $id -> ${winners[id]}"}
         }
 
         val totalPages = ceil(giveaway.getWinners().size / 25.0)
@@ -215,11 +213,11 @@ class GiveawayCommands(
                             val selectedIds = selected.map { it.value }
                             users.forEach { original ->
                                 if (original in selectedIds && original !in state.selectedUsers) {
-                                    log.trace("Adding $original")
+                                    log.trace { "Adding $original" }
                                     state.selectedUsers.add(original)
                                 } else {
                                     if (original in state.selectedUsers && original !in selectedIds) {
-                                        log.trace("Removing $original")
+                                        log.trace { "Removing $original" }
                                         state.selectedUsers.remove(original)
                                     }
                                 }

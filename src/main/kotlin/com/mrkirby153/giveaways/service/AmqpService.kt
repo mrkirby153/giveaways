@@ -1,10 +1,10 @@
 package com.mrkirby153.giveaways.service
 
-import com.mrkirby153.botcore.utils.SLF4J
 import com.mrkirby153.giveaways.config.BROADCAST_EXCHANGE
 import com.mrkirby153.giveaways.events.GiveawayEndedEvent
 import com.mrkirby153.giveaways.events.GiveawayStartedEvent
 import com.mrkirby153.giveaways.jpa.GiveawayRepository
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.future.await
 import net.dv8tion.jda.api.sharding.ShardManager
 import org.springframework.amqp.core.ExchangeTypes
@@ -20,6 +20,8 @@ import org.springframework.core.ParameterizedTypeReference
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 
+
+private val log = KotlinLogging.logger { }
 
 interface AmqpService {
 
@@ -57,12 +59,10 @@ class AmqpManager(
     private val shardManager: ShardManager
 ) : AmqpService {
 
-    private val log by SLF4J
-
     override suspend fun <Resp : AmqpMessage?> rpc(
         req: AmqpRequest<Resp>, destNode: String, type: Class<Resp>
     ): Resp? {
-        log.trace("RPC call -> {}: {} -> {}", destNode, req, type)
+        log.trace { "RPC call -> $destNode: $req -> $type" }
         val resp = asyncRabbitTemplate.convertSendAndReceiveAsType(
             "giveaways_${destNode}",
             req,
@@ -73,12 +73,12 @@ class AmqpManager(
 
     override fun send(msg: AmqpMessage, destNode: String) {
         val routingKey = "giveaways_${destNode}"
-        log.trace("Sending {} -> {}", msg, routingKey)
+        log.trace { "Sending $msg -> $routingKey" }
         rabbitTemplate.convertAndSend(routingKey, msg)
     }
 
     override fun broadcast(msg: AmqpMessage) {
-        log.trace("Broadcasting {}", msg)
+        log.trace { "Broadcasting $msg" }
         rabbitTemplate.convertAndSend(BROADCAST_EXCHANGE, "", msg)
     }
 
@@ -86,12 +86,12 @@ class AmqpManager(
     // Handlers
     @RabbitHandler
     fun onReceive(message: AmqpMessage.GiveawayEnded) {
-        log.trace("Received giveaway ended for ${message.giveawayId}")
+        log.trace { "Received giveaway ended for ${message.giveawayId}" }
         val giveaway = giveawayRepository.findByIdOrNull(message.giveawayId) ?: return
         // Check if we're the shard responsible for this event
         val guild = shardManager.getGuildById(giveaway.guildId)
         if (guild == null) {
-            log.trace("Dropping end message for {} as we don't own it.", giveaway)
+            log.trace { "Dropping end message for $giveaway as we don't own it." }
             return
         }
         publisher.publishEvent(GiveawayEndedEvent(message.giveawayId))
@@ -99,7 +99,7 @@ class AmqpManager(
 
     @RabbitHandler
     fun onReceive(message: AmqpMessage.GiveawayStarted) {
-        log.trace("Received giveaway started ${message.giveawayId}")
+        log.trace { "Received giveaway started ${message.giveawayId}" }
         publisher.publishEvent(GiveawayStartedEvent(message.giveawayId))
     }
 }

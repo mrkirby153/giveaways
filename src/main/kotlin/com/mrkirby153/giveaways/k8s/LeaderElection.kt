@@ -1,6 +1,6 @@
 package com.mrkirby153.giveaways.k8s
 
-import com.mrkirby153.botcore.utils.SLF4J
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.kubernetes.client.openapi.ApiClient
 import io.kubernetes.client.openapi.ApiException
 import io.kubernetes.client.openapi.apis.CoordinationV1Api
@@ -18,6 +18,8 @@ import java.time.temporal.ChronoUnit
 import java.util.Random
 
 private val random = Random()
+
+private val log = KotlinLogging.logger { }
 
 /**
  * A relatively simple leader election system utilizing kubernetes Leases.
@@ -57,7 +59,6 @@ class LeaderElection(
      */
     apiClient: ApiClient? = null
 ) {
-    private val log by SLF4J
 
     private val api = if (apiClient != null) CoordinationV1Api(apiClient) else CoordinationV1Api()
 
@@ -82,7 +83,7 @@ class LeaderElection(
 
     init {
         check(identifier.isNotEmpty()) { "Identifier must be specified" }
-        log.info("Created LeaderElection $namespace/$resourceName and identifier $identifier")
+        log.info { "Created LeaderElection $namespace/$resourceName and identifier $identifier" }
     }
 
     /**
@@ -115,7 +116,7 @@ class LeaderElection(
             if (isLeader) {
                 // We're already the leader, attempt to renew our lease
                 if (!tryRenew()) {
-                    log.trace("Leadership lost")
+                    log.trace { "${"Leadership lost"}" }
                     isLeader = false
                     // We lost our leadership
                     onNewLeaderCallbacks.forEach {
@@ -156,7 +157,7 @@ class LeaderElection(
             val now = OffsetDateTime.now(ZoneId.of("UTC")).truncatedTo(ChronoUnit.MICROS)
             val current = getLease()
             if (current == null) {
-                log.trace("Current lease does not exist, creating")
+                log.trace { "${"Current lease does not exist, creating"}" }
                 // Lease doesn't exist, create it
                 val newLease = V1Lease().apply {
                     metadata = V1ObjectMeta().apply {
@@ -172,14 +173,14 @@ class LeaderElection(
                 }
                 withContext(Dispatchers.IO) {
                     try {
-                        log.trace("Creating {}/{}", namespace, newLease)
+                        log.trace { "Creating $namespace/$newLease" }
                         api.createNamespacedLease(namespace, newLease, null, null, null, null)
                     } catch (e: Exception) {
-                        log.error("Could not create lease: $namespace/$newLease", e)
+                        log.error(e) { "Could not create lease: $namespace/$newLease" }
                         throw e
                     }
                 }
-                log.debug("Created and acquired lease")
+                log.debug { "Created and acquired lease" }
                 return // Acquired
             } else {
                 // Lease exists
@@ -188,7 +189,7 @@ class LeaderElection(
                     if (current.spec?.holderIdentity == identifier) {
                         return // We own the lease
                     } else {
-                        log.trace("lease is owned by someone else: ${current.spec?.holderIdentity}")
+                        log.trace { "lease is owned by someone else: ${current.spec?.holderIdentity}" }
                         delayUntilTime(getEndTime(current))
                     }
                 } else {
@@ -211,7 +212,7 @@ class LeaderElection(
                             null
                         )
                     }
-                    log.debug("Acquired stale lease")
+                    log.debug { "Acquired stale lease" }
                     return
                 }
             }
@@ -224,13 +225,13 @@ class LeaderElection(
         var existingLease = getLease() ?: error("Invariant: Can't renew a lease that doesn't exist")
 
         if (existingLease.spec?.holderIdentity != identifier) {
-            log.trace("Lease has been acquired by someone else, aborting")
+            log.trace { "Lease has been acquired by someone else, aborting" }
             // We've lost leadership, abort
             return false
         }
 
         val renewAt = getRefreshTime(existingLease)
-        log.trace("Renewing at {}", now)
+        log.trace { "Renewing at $now" }
         delayUntilTime(renewAt)
 
         existingLease = getLease() ?: return false
@@ -247,7 +248,7 @@ class LeaderElection(
                 null
             )
         }
-        log.trace("Lease renewed to {}", existingLease.spec!!.renewTime)
+        log.trace { "Lease renewed to ${existingLease.spec!!.renewTime}" }
         return true
     }
 
@@ -269,7 +270,7 @@ class LeaderElection(
         val timestamp = lease.spec?.renewTime ?: OffsetDateTime.now(ZoneId.of("UTC"))
         val expiresAt = timestamp.plusSeconds(lease.spec?.leaseDurationSeconds?.toLong() ?: 0L)
         val now = OffsetDateTime.now(ZoneId.of("UTC"))
-        log.trace("Lease expires at {}, now: {}", expiresAt, now)
+        log.trace { "Lease expires at $expiresAt, now: $now" }
         return timestamp.plusSeconds(lease.spec?.leaseDurationSeconds?.toLong() ?: 0L).isAfter(
             OffsetDateTime.now(ZoneId.of("UTC"))
         )
@@ -297,7 +298,7 @@ class LeaderElection(
 
     private suspend fun delayUntilTime(time: OffsetDateTime) {
         val delayMs = time.toInstant().toEpochMilli() - System.currentTimeMillis()
-        log.trace("Waiting {}ms until {}", delayMs, time)
+        log.trace { "Waiting ${delayMs}ms until $time" }
         delay(delayMs)
     }
 }

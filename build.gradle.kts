@@ -56,6 +56,7 @@ dependencies {
     implementation("me.mrkirby153:KirbyUtils-Spring:7.0-SNAPSHOT")
     implementation("io.kubernetes:client-java:15.0.1")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    implementation("io.github.oshai:kotlin-logging-jvm:6.0.3")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test") {
         exclude(module = "mockito-core")

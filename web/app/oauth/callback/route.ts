@@ -42,6 +42,10 @@ export async function GET(request: NextRequest) {
     }),
   });
 
+  if (!response.ok) {
+    return getErrorResponse(request, "TOKEN_VALIDATION_FAILED");
+  }
+
   let json = await response.json();
   let token = json.access_token;
 

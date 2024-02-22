@@ -1,7 +1,7 @@
 package com.mrkirby153.giveaways.web.services
 
-import com.mrkirby153.botcore.utils.SLF4J
 import com.mrkirby153.giveaways.utils.executeAsync
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -13,6 +13,7 @@ import okhttp3.Request
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 
+private val log = KotlinLogging.logger { }
 
 interface OauthService {
 
@@ -51,8 +52,6 @@ class OAuthManager(
     private val client: OkHttpClient
 ) : OauthService {
 
-    private val log by SLF4J
-
     override fun getClientId(): String {
         return clientId
     }
@@ -76,7 +75,6 @@ class OAuthManager(
         redirectUri: String,
         authorizationCode: String
     ): OAuthTokenResponse {
-        log.debug("Performing oauth with redirect uri $redirectUri and authorization code $authorizationCode")
         val formBody =
             FormBody.Builder().add("client_id", clientId).add("client_secret", clientSecret)
                 .add("grant_type", "authorization_code").add("code", authorizationCode)
@@ -87,7 +85,7 @@ class OAuthManager(
         val resp = client.newCall(req).executeAsync()
         if (!resp.isSuccessful) {
             resp.body.use {
-                log.debug("Received unsuccessful code: {} {}", resp.code, it?.string())
+                log.debug { "Received unsuccessful code: ${resp.code} ${it?.toString()}" }
                 throw IllegalStateException("Bad Request")
             }
         } else {

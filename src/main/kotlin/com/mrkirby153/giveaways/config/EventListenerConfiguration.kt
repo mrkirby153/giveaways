@@ -1,19 +1,20 @@
 package com.mrkirby153.giveaways.config
 
 import com.mrkirby153.botcore.coroutine.CoroutineEventListener
-import com.mrkirby153.botcore.utils.SLF4J
+import io.github.oshai.kotlinlogging.KotlinLogging
 import net.dv8tion.jda.api.sharding.ShardManager
 import org.springframework.context.annotation.Configuration
+
+private val log = KotlinLogging.logger { }
 
 @Configuration
 class EventListenerConfiguration(
     coroutineEventListeners: List<CoroutineEventListener>,
     shardManager: ShardManager
 ) {
-    private val log by SLF4J
 
     init {
-        log.info("Registering {} coroutine event listeners", coroutineEventListeners.size)
+        log.info { "Registering ${coroutineEventListeners.size} coroutine event listeners" }
         shardManager.addEventListener(*coroutineEventListeners.toTypedArray())
     }
 }

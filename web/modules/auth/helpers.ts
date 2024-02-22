@@ -3,6 +3,7 @@ import { User, verifyJWT } from "./oauth";
 import { cookies, headers } from "next/headers";
 import type { ErrorKey } from "./errors";
 import { NextResponse, NextRequest } from "next/server";
+import { redirect } from "@/utils/nextUrlUtils";
 
 export const getCurrentUser = cache(async (): Promise<User | null> => {
   let token: string | undefined;
@@ -29,13 +30,9 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
 });
 
 export function getErrorResponse(request: NextRequest, error: ErrorKey) {
-  const newUrl = request.nextUrl.clone();
-  newUrl.pathname = "/oauth/error";
-  let toDelete: string[] = [];
-  newUrl.searchParams.forEach((_, k) => {
-    toDelete.push(k);
+  const newUrl = redirect(request.nextUrl, {
+    to: "/oauth/error",
+    params: { error },
   });
-  toDelete.forEach((k) => newUrl.searchParams.delete(k));
-  newUrl.searchParams.set("error", error);
   return NextResponse.redirect(newUrl);
 }

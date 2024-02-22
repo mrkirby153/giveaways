@@ -2,6 +2,7 @@ package com.mrkirby153.giveaways.config
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.mrkirby153.botcore.utils.SLF4J
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.amqp.core.Queue
 import org.springframework.amqp.rabbit.AsyncRabbitTemplate
 import org.springframework.amqp.rabbit.core.RabbitTemplate
@@ -13,16 +14,16 @@ import org.springframework.context.annotation.Configuration
 
 const val BROADCAST_EXCHANGE = "giveaways_broadcast"
 
+private val log = KotlinLogging.logger {  }
+
 @Configuration("rabbitMqConfiguration")
 class RabbitMQConfiguration(
     @Value("\${giveaways.nodeidentifier}")
     val nodeIdentifier: String
 ) {
 
-    private val log by SLF4J
-
     init {
-        log.info("Initializing as $nodeIdentifier")
+        log.info { "Initializing as $nodeIdentifier" }
     }
 
     @Bean

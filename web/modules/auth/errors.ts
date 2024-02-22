@@ -25,6 +25,16 @@ export const errors = {
     title: "Unauthorized",
     description: "The authroization we received was invalid.",
   },
+  TOKEN_VALIDATION_FAILED: {
+    title: "Token Validation Failed",
+    description:
+      "We were unable to successfully validate the response from Discord.",
+  },
+  AUTH_URL_FAILED: {
+    title: "Unable to Generate Auth URL",
+    description:
+      "We were unable to generate the URL to authenticate you with Discord.",
+  },
 } satisfies Errors;
 
 export type ErrorKey = keyof typeof errors;
