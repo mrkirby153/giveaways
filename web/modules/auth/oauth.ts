@@ -1,7 +1,11 @@
-import { SignJWT, jwtVerify } from "jose";
+import { JWTPayload, SignJWT, jwtVerify } from "jose";
+import invariant from "tiny-invariant";
 
 export interface User {
   id: string;
+  username: string;
+  discriminator: string;
+  global_name: string;
 }
 
 export const verifyJWT = async <T>(token: string): Promise<T> => {
@@ -15,9 +19,10 @@ export const verifyJWT = async <T>(token: string): Promise<T> => {
 };
 
 export const signJWT = async (
-  payload: { sub: string },
+  payload: JWTPayload,
   options: { exp: string }
 ) => {
+  invariant(payload.sub, "Subject is required");
   const secret = new TextEncoder().encode(process.env.JWT_SECRET);
   const alg = "HS256";
   return new SignJWT(payload)

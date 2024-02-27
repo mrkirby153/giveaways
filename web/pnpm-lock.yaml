@@ -17,6 +17,9 @@ dependencies:
   react-dom:
     specifier: ^18
     version: 18.2.0(react@18.2.0)
+  tiny-invariant:
+    specifier: ^1.3.3
+    version: 1.3.3
   zustand:
     specifier: ^4.5.1
     version: 4.5.1(@types/react@18.2.56)(react@18.2.0)
@@ -2591,6 +2594,10 @@ packages:
     dependencies:
       any-promise: 1.3.0
     dev: true
+
+  /tiny-invariant@1.3.3:
+    resolution: {integrity: sha512-+FbBPE1o9QAYvviau/qC5SE3caw21q3xkvWKBtja5vgqOWIHHJ3ioaq1VPfn/Szqctz2bU/oYeKd9/z5BL+PVg==}
+    dev: false
 
   /to-regex-range@5.0.1:
     resolution: {integrity: sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ==}

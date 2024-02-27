@@ -61,9 +61,12 @@ export async function GET(request: NextRequest) {
 
   let user: User = {
     id: userJson.id,
+    username: userJson.username,
+    discriminator: userJson.discriminator,
+    global_name: userJson.global_name,
   };
 
-  let jwt = await signJWT({ sub: user.id }, { exp: "1h" });
+  let jwt = await signJWT({ sub: user.id, user }, { exp: "1h" });
 
   let destination = request.nextUrl.clone();
   destination.pathname = "/";

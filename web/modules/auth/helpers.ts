@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import type { ErrorKey } from "./errors";
 import { NextResponse, NextRequest } from "next/server";
 import { redirect } from "@/utils/nextUrlUtils";
+import invariant from "tiny-invariant";
 
 export const getCurrentUser = cache(async (): Promise<User | null> => {
   let token: string | undefined;
@@ -18,15 +19,24 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
     return null;
   }
 
-  let subject = "";
+  // let verifiedToken = try {
+  //   await verifyJWT<{ sub: string }>(token)
+  // } catch {
+  //   return null;
+  // }
+  // return {
+  //   id: subject,
+  // };
   try {
-    subject = (await verifyJWT<{ sub: string }>(token)).sub;
+    const verifiedToken = await verifyJWT<{ sub: string; user: User }>(token);
+    invariant(
+      verifiedToken.sub == verifiedToken.user.id,
+      "Subject and user id must match"
+    );
+    return verifiedToken.user;
   } catch {
     return null;
   }
-  return {
-    id: subject,
-  };
 });
 
 export function getErrorResponse(request: NextRequest, error: ErrorKey) {
